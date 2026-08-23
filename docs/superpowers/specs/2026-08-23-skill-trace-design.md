@@ -112,7 +112,7 @@
 ## 五、组件设计
 
 ```
-skill-trace/                      # npm workspaces monorepo
+skillsupertracker/                # npm workspaces monorepo
 ├── packages/
 │   ├── core/                 # 轨迹 schema（zod，agent 中立）+ 类型 + 帧扫描 vendored 层
 │   │   └── zstd-frames.ts    # vendor 自 DSH scanZstdFrames（含 license 声明）
@@ -125,7 +125,7 @@ skill-trace/                      # npm workspaces monorepo
 └── fixtures/                 # 黄金样本（脱敏真实日志）
 ```
 
-- **CLI**：`skill-trace analyze <session-id|dir> --open`（MVP：单会话轨迹 → 自包含 HTML 并打开）、`skill-trace stat`（MVP：跨会话 heat）、`skill-trace serve`（P1：本地 HTTP + 文件监视实时推送）
+- **CLI**：`skillsupertracker analyze <session-id|dir> --open`（MVP：单会话轨迹 → 自包含 HTML 并打开）、`skillsupertracker stat`（MVP：跨会话 heat）、`skillsupertracker serve`（P1：本地 HTTP + 文件监视实时推送）
 - **轨迹 schema**（zod 定义，JSON Schema 导出）：`session / turns[] / events[]`，事件类型：`skill-load`（skill 名称、来源根、选择理由字段若可提取）/ `tool-call`（工具名、目标）/ `artifact`（产物：写入的文件路径、commit 等）/ 元数据（耗时、token 若有）
 - **前端**：左=时序树（节点=会话→turn→skill→工具→产物，颜色=heat），右=节点详情面板；右键菜单按 L0/L1 分层点亮；顶部=跨会话 heat 统计视图
 - **动作执行器（P1 起）**：软删除（quarantine + manifest 记录原路径/时间戳，30 天宽限）、冻结（复用 zebbkira 前言改写约定，逐字节兼容）
