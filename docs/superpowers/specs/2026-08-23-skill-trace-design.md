@@ -34,8 +34,8 @@
 |---|---|---|
 | **MVP** | DSH（架构多 agent 中立） | 日志解析 → 轨迹 JSON → 单会话时序树（只读）+ 跨会话 heat 统计 |
 | **P1** | 检测到 `~/.dsh` 才点亮写操作 | Claude Code adapter；软删除 / 冻结（复用 zebbkira 前言改写约定）/ 更新（语义待定义，暂缓）；趋势时间线 |
-| **P2** | — | 替换推荐（skills.sh 生态 skill_find）、选优（forkprobe 对比实测，DSH only） |
-| **P3** | 按需扩展 | 其他 agent adapter（Codex/Gemini/…）、产物依赖边 |
+| **P2** | — | **安全审计主线**（Blast Radius 权限着色 + 选优 forkprobe 对比实测 + 技能安全体检）；替换推荐（skills.sh 生态 skill_find）；CI 无头回归断言；Time-Travel 单步回放 |
+| **P3** | 按需扩展 | 其他 agent adapter（Codex/Gemini/…）、产物依赖边、Trajectory-to-Skill 轨迹提炼 |
 
 ## 四、架构决策（含两轮 Kimi 评审裁定）
 
@@ -151,8 +151,8 @@ skillsupertracker/                # npm workspaces monorepo
 |---|---|---|
 | **MVP（约 2 周）** | 轨迹 schema（agent 中立）+ adapter 接口契约；**DSH adapter**（唯一实现）；`analyze --open`/`stat` CLI；单会话时序树（只读，节点含产物）；heat 统计；`.bat` 启动器（调 analyze 并打开 HTML） | 一切写操作、推荐、选优、依赖边、其他 agent adapter、serve |
 | **P1** | **Claude Code adapter**（接口已随 MVP 定稿）；`serve`（日志监视实时推送）；趋势时间线；软删除 + 冻结（复用 zebbkira 约定）；`node:sqlite` 增量索引 | 空白推荐 |
-| **P2** | 替换推荐（skills.sh skill_find 对接）；选优（forkprobe，DSH only）；单 exe 观望评估 | — |
-| **P3** | 其他 agent adapter（Codex/Gemini/… 按真实需求）；产物依赖边 | — |
+| **P2** | **安全审计主线**：Blast Radius（按读写权限对节点着色：只读 / 工作区修改 / 高危网络与系统操作，凭据泄露提示）+ 技能安全体检 + 选优（forkprobe，DSH only）；替换推荐（skills.sh skill_find 对接）；**CI 无头回归断言**（CI 校验 Agent 运行是否触发异常技能调用路径）；Time-Travel 单步回放；单 exe 观望评估 | — |
+| **P3** | 其他 agent adapter（Codex/Gemini/… 按真实需求）；产物依赖边；**Trajectory-to-Skill 轨迹提炼**（成功轨迹一键提炼为标准 skill 声明） | — |
 
 ## 九、风险与对策
 
