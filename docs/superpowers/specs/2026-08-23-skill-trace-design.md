@@ -165,8 +165,14 @@ skill-trace/                      # npm workspaces monorepo
 | 单 exe 分发不成熟 | 中 | MVP npx+.bat；SEA/bun P2 观望 |
 | 多 agent 扩展把 DSH 假设带进核心 | 中 | adapter-first：schema agent 中立 + 扩展字段 + 前端只依赖中立 schema |
 
-## 十、待定项（需用户裁定）
+## 十、已定项与待定项
 
-1. **项目命名**：skill-trace / skill-trail / 其他？（npm scope 一并定）
-2. 仓库位置：`E:\BaiduSyncdisk\Data\vibe-coding\skill-trace\`（与 kimi-tide 等并列）是否 OK；GitHub 仓库建不建、public/private
-3. 黄金样本来源：用户授权从本机 `~/.dsh/sessions` 取 1-2 个会话日志脱敏入库
+### 已定（2026-08-23 用户裁定）
+
+1. **项目命名**：GitHub 仓库 = `skill-tracker`（tafcear/skill-tracker）；npm 发布名 = **`skillsupertracker`**（npm 上 `skill-tracker` 已被占用 1.0.1，按用户规则取备名）
+2. **GitHub 远端**：已建 **public 开源仓库**（tafcear/skill-tracker，2026-08-23）；**License 待定**（用户将与作者讨论，定案前仓库不设 LICENSE 文件、README 标注「License 待定」）
+3. **黄金样本**：用户已授权从本机 `~/.dsh/sessions` 取 1-2 个会话日志入库，**要求严格脱敏**（去消息正文/密钥/本地绝对路径/会话 ID，仅保留事件结构与调用序列）
+
+### 待定项（不阻塞 MVP）
+
+- 无（三项均已在上面定案；License 选择随项目推进讨论）
