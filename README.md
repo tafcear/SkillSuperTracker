@@ -1,6 +1,8 @@
-# skillsupertracker
+# SkillSuperTracker
 
 **AI Agent 技能轨迹可视化独立本地工具** —— 把一次会话/一个项目展开成技能触发树/流程图，动态直观地看到：哪个 skill 怎么被触发、触发后产生了什么产物；每个节点可交互（右键：选优/替换/删除/更新/冻结，分层点亮）；附带跨会话技能使用热度统计（heat）与替换推荐。
+
+> 命名：显示名 **SkillSuperTracker**；npm 包名与 CLI 为小写 `skillsupertracker`（npm 注册表限制）。
 
 ## 当前状态
 

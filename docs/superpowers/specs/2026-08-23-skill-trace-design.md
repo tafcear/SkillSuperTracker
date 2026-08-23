@@ -169,8 +169,8 @@ skillsupertracker/                # npm workspaces monorepo
 
 ### 已定（2026-08-23 用户裁定）
 
-1. **项目命名**：**统一命名 `skillsupertracker`**——GitHub 仓库（tafcear/skillsupertracker，自 skill-tracker 改名而来）与 npm 发布名一致（npm 上 `skill-tracker` 已被占用 1.0.1，故统一用此名）
-2. **GitHub 远端**：已建 **public 开源仓库**（tafcear/skillsupertracker，2026-08-23）；**License 待定**（用户将与作者讨论，定案前仓库不设 LICENSE 文件、README 标注「License 待定」）
+1. **项目命名**：显示名 **SkillSuperTracker**（2026-08-23 晚用户更名裁定，GitHub 仓库同步改名 tafcear/SkillSuperTracker，旧链接自动重定向）；**npm 包名与 CLI 保持小写 `skillsupertracker`**（npm 注册表禁止大写包名；skill-tracker 已被占用 1.0.1）
+2. **GitHub 远端**：**public 开源仓库**（tafcear/SkillSuperTracker）；**License 待定**（用户将与作者讨论，定案前仓库不设 LICENSE 文件、README 标注「License 待定」）
 3. **黄金样本**：用户已授权从本机 `~/.dsh/sessions` 取 1-2 个会话日志入库，**要求严格脱敏**（去消息正文/密钥/本地绝对路径/会话 ID，仅保留事件结构与调用序列）
 
 ### 待定项（不阻塞 MVP）
