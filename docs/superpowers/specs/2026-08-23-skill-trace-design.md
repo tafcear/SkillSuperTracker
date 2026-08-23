@@ -32,7 +32,7 @@
 
 | 层 | 范围 | 能力 |
 |---|---|---|
-| **L0 跨 agent（MVP）** | 所有支持 agent | 日志解析 → 轨迹 JSON → 单会话时序树（只读）+ 跨会话 heat 统计 |
+| **L0 跨 agent（MVP）** | MVP=DSH，架构多 agent 中立 | 日志解析 → 轨迹 JSON → 单会话时序树（只读）+ 跨会话 heat 统计 |
 | **L1 DSH 专属（P1）** | 检测到 `~/.dsh` 才点亮 | 软删除 / 冻结（复用 zebbkira 前言改写约定）/ 更新（语义待定义，暂缓） |
 | **P2** | — | 替换推荐（skills.sh 生态 skill_find）、选优（forkprobe 对比实测，DSH only）、趋势时间线 |
 | **P3** | 按需扩展 | 其他 agent adapter（Codex/Gemini/…）、产物依赖边 |
@@ -43,12 +43,15 @@
 
 - 非 DSH 插件；对多 agent 支持采用**分层产品**定位（L0 跨 agent 只读 + L1 DSH 专属写操作），不做「全 agent 写操作」承诺
 
-### D2 数据源策略：混合（用户选路线 3，Kimi 二轮修正）
+### D2 数据源策略：DSH 起步 + adapter-first 多 agent 架构（用户修正）
 
-- **MVP 原生 adapter 两个**：DSH（`~/.dsh/sessions/**/session.jsonl.zstd`）+ Claude Code（`~/.claude/projects/**/*.jsonl`）
-- 统一轨迹 JSON schema 公开文档化，作为 adapter 输出契约
+- **MVP 只实现 DSH adapter**（`~/.dsh/sessions/**/session.jsonl.zstd`）
+- 但架构 **adapter-first**，从第一天起：
+  - 统一轨迹 JSON schema 保持 **agent 中立**（DSH 专属信息放 adapter 扩展字段，不进核心 schema）
+  - adapter 接口抽象（输入=日志文件 → 输出=轨迹）即多 agent 契约；Claude Code / Codex / Gemini 等后续仅差一个实现，不动核心
+  - 前端/统计层只依赖 agent 中立 schema，不感知数据来自哪个 agent
 - **砍掉**「埋点兜底」：≈N 个 adapter 换名，且各 agent 不会主动写统一格式
-- 其他 agent（Codex/Gemini/Reasonix…）P3 按真实需求逐个加 adapter
+- 其他 agent：Claude Code 先行（P1），其余按真实需求逐个加 adapter
 - 格式漂移跟踪：DSH 开源在 GitHub，可跟上游 diff（优于逆向私有格式）
 
 ### D3 技术栈：TypeScript/Node 全栈（两轮 Kimi 审查裁决「成立，理由重写」）
@@ -111,11 +114,12 @@
 ```
 skill-trace/
 ├── packages/
-│   ├── core/                 # 轨迹 schema（zod）+ 类型 + 帧扫描 vendored 层
+│   ├── core/                 # 轨迹 schema（zod，agent 中立）+ 类型 + 帧扫描 vendored 层
 │   │   └── zstd-frames.ts    # vendor 自 DSH scanZstdFrames（含 license 声明）
 │   ├── adapters/
-│   │   ├── dsh/              # DSH session.jsonl.zstd → 轨迹
-│   │   └── claude/           # Claude projects/*.jsonl → 轨迹
+│   │   ├── types.ts          # adapter 接口契约（多 agent 抽象，MVP 定稿）
+│   │   ├── dsh/              # DSH session.jsonl.zstd → 轨迹（MVP 唯一实现）
+│   │   └── claude/           # P1（接口已定稿，仅差实现）
 │   ├── cli/                  # analyze / stat / serve 子命令
 │   └── web/                  # 自包含 HTML（Cytoscape 树 + heat 表 + 右键菜单）
 └── fixtures/                 # 黄金样本（脱敏真实日志）
@@ -136,7 +140,7 @@ skill-trace/
 
 ## 七、测试策略
 
-- 黄金样本回归：脱敏真实 session.jsonl.zstd / .jsonl 入 fixtures，CI 跑 adapter 解析一致性
+- 黄金样本回归：脱敏真实 session.jsonl.zstd 入 fixtures（P1 起含 Claude .jsonl），CI 跑 adapter 解析一致性
 - 帧扫描单测：合成多帧流（≥2 帧 + 撕裂帧变体），断言逐帧输出完整、tornStart 恢复正确
 - 宽松解析单测：坏行/未知字段/截断尾行不炸、计数上报
 - 前端：右键菜单状态机（L0/L1 分层点亮）单测；Cytoscape 渲染冒烟
@@ -145,20 +149,21 @@ skill-trace/
 
 | 阶段 | 内容 | 明确不做 |
 |---|---|---|
-| **MVP（约 2 周）** | 轨迹 schema；DSH + Claude adapter；`analyze`/`stat` CLI；单会话时序树（只读，节点含产物）；heat 统计；`.bat` 启动器 | 一切写操作、推荐、选优、依赖边、其他 agent |
-| **P1** | 趋势时间线；软删除 + 冻结（复用 zebbkira 约定）；`node:sqlite` 增量索引；日志文件监视（实时追加） | 空白推荐 |
+| **MVP（约 2 周）** | 轨迹 schema（agent 中立）+ adapter 接口契约；**DSH adapter**（唯一实现）；`analyze`/`stat` CLI；单会话时序树（只读，节点含产物）；heat 统计；`.bat` 启动器 | 一切写操作、推荐、选优、依赖边、其他 agent adapter |
+| **P1** | **Claude Code adapter**（接口已随 MVP 定稿）；趋势时间线；软删除 + 冻结（复用 zebbkira 约定）；`node:sqlite` 增量索引；日志文件监视（实时追加） | 空白推荐 |
 | **P2** | 替换推荐（skills.sh skill_find 对接）；选优（forkprobe，DSH only）；单 exe 观望评估 | — |
-| **P3** | 其他 agent adapter（按真实需求）；产物依赖边 | — |
+| **P3** | 其他 agent adapter（Codex/Gemini/… 按真实需求）；产物依赖边 | — |
 
 ## 九、风险与对策
 
 | 风险 | 等级 | 对策 |
 |---|---|---|
-| DSH/Claude 日志格式漂移 | 高 | D8 五件套（夹具/宽松/指纹/并发容忍/schema 契约） |
+| DSH 日志格式漂移 | 高 | D8 五件套（夹具/宽松/指纹/并发容忍/schema 契约） |
 | 多帧 zstd 静默截断 | 高（已识别） | D4 vendored 帧扫描 + 逐帧解码 + 单测 |
 | 与已装 manager 插件状态分裂 | 高 | §六：冻结复用其约定、删除软删除 |
 | Node zstd API experimental 变动 | 中 | 只用 one-shot API + engines 锁 >=22.15 |
 | 单 exe 分发不成熟 | 中 | MVP npx+.bat；SEA/bun P2 观望 |
+| 多 agent 扩展把 DSH 假设带进核心 | 中 | adapter-first：schema agent 中立 + 扩展字段 + 前端只依赖中立 schema |
 
 ## 十、待定项（需用户裁定）
 
