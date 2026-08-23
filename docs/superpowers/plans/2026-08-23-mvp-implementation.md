@@ -22,7 +22,7 @@
 - Workspace root is the repo root `E:\BaiduSyncdisk\Data\vibe-coding\skillsupertracker`; Git remote is `origin` → `https://github.com/tafcear/skillsupertracker`. Git MCP tools are NOT available for this repo (they are scoped to another repo) — use `git` CLI via pwsh for all git operations.
 - npm cache must point inside the workspace in the sandbox: set `$env:npm_config_cache = "<repo>\.npm-cache-tmp"` before any `npm install`/`npm view`.
 - **npm does NOT support the `workspace:` protocol** (`EUNSUPPORTEDPROTOCOL`, verified empirically with npm 11.17). Workspace dependencies use plain version ranges (`"0.1.0"`); npm links the local workspace package when the version range matches.
-- **vitest 4 removed the `--project` flag** (verified: every value reports "No projects matched the filter"). Filter one project with a POSITIONAL argument: `npx vitest run core` — the project name is the package directory basename (`core`/`adapters`/`cli`/`web`); `test.name` inside a per-package config does NOT name the project in workspace mode, so per-package configs omit it.
+- **vitest 4 ignores `vitest.workspace.ts`** (verified empirically: per-package configs, including `resolve.alias`, are NOT loaded, so workspace-dependency aliases silently fail). Use a root `vitest.config.ts` with `test: { projects: ['packages/*'] }` (verified: per-package configs and aliases load). In projects mode the project name is the package.json `name` (e.g. `@skillsupertracker/core`); run one package's tests with `npm test -w @skillsupertracker/core` (each package has a `"test": "vitest run"` script).
 - **Node native type stripping does NOT remap `.js` → `.ts` import specifiers** (verified on Node 24.19): scripts executed directly with `node file.ts` must import the BUILT `dist/*.js` output, never TS sources whose internal imports use `.js` extensions.
 - Real session logs for golden fixtures: user-authorized (spec §十.3), **strict anonymization** — no message bodies, no keys, no absolute paths, no session ids; only event structure and call sequences. Use `fixtures/anonymize.ts` (Task 8); never commit raw logs.
 
@@ -31,7 +31,7 @@
 ### Task 1: Monorepo scaffold (workspaces, tsconfig, vitest wiring, engines)
 
 **Files:**
-- Create: `package.json` (root), `tsconfig.base.json`, `.gitignore`, `vitest.workspace.ts`
+- Create: `package.json` (root), `tsconfig.base.json`, `.gitignore`, `vitest.config.ts`
 - Create: `packages/core/package.json`, `packages/core/tsconfig.json`, `packages/core/vitest.config.ts`, `packages/core/src/index.ts`, `packages/core/test/smoke.test.ts`
 - Create: `packages/adapters/package.json`, `packages/adapters/tsconfig.json`, `packages/adapters/vitest.config.ts`
 - Create: `packages/cli/package.json`, `packages/cli/tsconfig.json`, `packages/cli/vitest.config.ts`
@@ -60,7 +60,7 @@ Run (from repo root; set npm cache first):
 ```powershell
 $env:npm_config_cache = "E:\BaiduSyncdisk\Data\vibe-coding\skillsupertracker\.npm-cache-tmp"
 npm install
-npx vitest run core
+npm test -w @skillsupertracker/core
 ```
 Expected: FAIL — `Cannot find module '../src/index.js'` (the module does not exist yet).
 
@@ -73,6 +73,7 @@ Root `package.json`:
   "name": "skillsupertracker-monorepo",
   "private": true,
   "version": "0.1.0",
+  "type": "module",
   "engines": { "node": ">=22.15" },
   "workspaces": ["packages/*"],
   "scripts": {
@@ -87,6 +88,8 @@ Root `package.json`:
   }
 }
 ```
+
+(`"type": "module"` keeps the root `vitest.config.ts` on the ESM config path — vitest 4 warns when an ESM-syntax config is loaded as CommonJS.)
 
 `tsconfig.base.json`:
 
@@ -107,12 +110,14 @@ Root `package.json`:
 }
 ```
 
-`vitest.workspace.ts`:
+`vitest.config.ts` (root — vitest 4 ignores the legacy `vitest.workspace.ts` file, so projects are declared here):
 
 ```ts
-import { defineWorkspace } from 'vitest/config';
+import { defineConfig } from 'vitest/config';
 
-export default defineWorkspace(['packages/*']);
+export default defineConfig({
+  test: { projects: ['packages/*'] },
+});
 ```
 
 `.gitignore`:
@@ -138,6 +143,7 @@ packages/cli/templates/
   "dependencies": { "zod": "^4" },
   "scripts": {
     "build": "tsc -p .",
+    "test": "vitest run",
     "typecheck": "tsc -p . --noEmit"
   }
 }
@@ -183,6 +189,7 @@ export const coreVersion = '0.1.0';
   "dependencies": { "@skillsupertracker/core": "0.1.0" },
   "scripts": {
     "build": "tsc -p .",
+    "test": "vitest run",
     "typecheck": "tsc -p . --noEmit"
   }
 }
@@ -224,16 +231,21 @@ export default defineConfig({
   "bin": { "skillsupertracker": "dist/cli.js" },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": ["dist", "templates"],
   "dependencies": {
     "@skillsupertracker/adapters": "0.1.0",
     "@skillsupertracker/core": "0.1.0"
   },
   "scripts": {
     "build": "tsc -p . && node scripts/copy-template.mjs",
-    "typecheck": "tsc -p . --noEmit"
+    "test": "vitest run",
+    "typecheck": "tsc -p . --noEmit",
+    "prepublishOnly": "npm run build"
   }
 }
 ```
+
+(`files` + `prepublishOnly` keep the spec D6 `npx skillsupertracker` path publishable: the template is generated at publish time and packed even though `templates/` is gitignored. Actual npm publishing is deferred until the user opts in — see Task 12 note; the workspace packages are `private` for now.)
 
 `packages/cli/tsconfig.json` (same shape as core's):
 
@@ -266,7 +278,7 @@ Note: `packages/cli/scripts/copy-template.mjs` is created in Task 11; until then
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run core`
+Run: `npm test -w @skillsupertracker/core`
 Expected: PASS, 1 test.
 
 - [ ] **Step 5: Verify install + typecheck**
@@ -277,7 +289,7 @@ Expected: exit 0, no output errors.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add package.json tsconfig.base.json .gitignore vitest.workspace.ts packages/core packages/adapters/package.json packages/adapters/tsconfig.json packages/adapters/vitest.config.ts packages/cli/package.json packages/cli/tsconfig.json packages/cli/vitest.config.ts
+git add package.json tsconfig.base.json .gitignore vitest.config.ts packages/core packages/adapters/package.json packages/adapters/tsconfig.json packages/adapters/vitest.config.ts packages/cli/package.json packages/cli/tsconfig.json packages/cli/vitest.config.ts
 git commit -m "chore: scaffold npm-workspaces monorepo (core/adapters/cli)"
 ```
 
@@ -401,7 +413,7 @@ describe('decodeZstdLog', () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run core`
+Run: `npm test -w @skillsupertracker/core`
 Expected: FAIL — modules `../src/zstd-frames.js` and `../src/decompress.js` do not exist.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -411,11 +423,11 @@ Expected: FAIL — modules `../src/zstd-frames.js` and `../src/decompress.js` do
 ```ts
 /**
  * Vendored from @deepseek-ai/dsh-session-persistence-jsonl v0.1.1-rc.2 (MIT
- * License, Copyright (c) 2026 DeepSeek), file lib/index.js, function
- * `scanZstdFrames` (lines 491-566) plus the ZSTD_MAGIC constant. Ported to
- * TypeScript without behavioral changes; error message text kept identical so
- * upstream fixes stay diffable. Do not "improve" this file without re-syncing
- * against upstream.
+ * License, Copyright (c) 2026 DeepSeek), file lib/index.js: the ZSTD_MAGIC
+ * constant (line 491) and the `scanZstdFrames` function (lines 503-566).
+ * Ported to TypeScript without behavioral changes; error message text kept
+ * identical so upstream fixes stay diffable. Do not "improve" this file
+ * without re-syncing against upstream.
  *
  * Locates complete Zstandard frames without decompressing their blocks.
  * Invalid complete structure rejects; EOF inside the final frame returns its
@@ -525,7 +537,7 @@ export type { DecodedZstdLog } from './decompress.js';
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npx vitest run core`
+Run: `npm test -w @skillsupertracker/core`
 Expected: PASS, 8 tests (1 smoke + 6 frames + … — count is 1+6+3=10).
 
 - [ ] **Step 5: Commit**
@@ -541,6 +553,7 @@ git commit -m "feat(core): vendored scanZstdFrames + per-frame zstd decoder"
 
 **Files:**
 - Create: `packages/core/src/trace-schema.ts`
+- Create: `docs/schema/trace-v1.schema.json` (generated by the one-off command in Step 3 — the committed drift contract of spec D8.5)
 - Modify: `packages/core/src/index.ts` (re-export)
 - Test: `packages/core/test/trace-schema.test.ts`
 
@@ -559,6 +572,9 @@ git commit -m "feat(core): vendored scanZstdFrames + per-frame zstd decoder"
 `packages/core/test/trace-schema.test.ts`:
 
 ```ts
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { traceJsonSchema, traceSessionSchema, statReportSchema } from '../src/trace-schema.js';
 
@@ -627,6 +643,12 @@ describe('traceSessionSchema', () => {
     expect(JSON.stringify(jsonSchema)).toContain('skill-load');
   });
 
+  it('matches the committed JSON Schema artifact (drift contract D8.5)', () => {
+    const committedPath = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'docs', 'schema', 'trace-v1.schema.json');
+    const committed = JSON.parse(readFileSync(committedPath, 'utf8'));
+    expect(traceJsonSchema()).toEqual(committed);
+  });
+
   it('accepts a valid stat report', () => {
     const stat = {
       agent: 'dsh',
@@ -641,7 +663,7 @@ describe('traceSessionSchema', () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run core`
+Run: `npm test -w @skillsupertracker/core`
 Expected: FAIL — `../src/trace-schema.js` does not exist.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -748,16 +770,23 @@ export { traceEventSchema, traceTurnSchema, traceSessionSchema, statReportSchema
 export type { TraceEvent, TraceTurn, TraceSession, StatReport } from './trace-schema.js';
 ```
 
+Then generate the committed JSON Schema artifact (spec D8.5 — the schema travels with the repo as the drift contract; the test above pins the generator to the committed copy):
+
+```powershell
+npm run build -w @skillsupertracker/core
+node --input-type=module -e "import { traceJsonSchema } from './packages/core/dist/index.js'; import { writeFileSync, mkdirSync } from 'node:fs'; mkdirSync('docs/schema', { recursive: true }); writeFileSync('docs/schema/trace-v1.schema.json', JSON.stringify(traceJsonSchema(), null, 2) + '\n');"
+```
+
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npx vitest run core`
+Run: `npm test -w @skillsupertracker/core`
 Expected: PASS (all core tests green). Note: the three event variants are `z.strictObject` — unknown keys are rejected, so the "forbidden key on skill-load" test fails before the schema exists and passes deterministically after. This strictness is the trajectory-side drift guard (spec D8.5); the LENIENT read of DSH input logs is a separate concern handled in the adapters package.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/core/src/trace-schema.ts packages/core/src/index.ts packages/core/test/trace-schema.test.ts
-git commit -m "feat(core): agent-neutral trajectory schema (zod v4) + JSON Schema export"
+git add packages/core/src/trace-schema.ts packages/core/src/index.ts packages/core/test/trace-schema.test.ts docs/schema/trace-v1.schema.json
+git commit -m "feat(core): agent-neutral trajectory schema (zod v4) + JSON Schema contract"
 ```
 
 ---
@@ -915,7 +944,7 @@ describe('aggregateStats', () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run core`
+Run: `npm test -w @skillsupertracker/core`
 Expected: FAIL — `../src/tree.js` / `../src/stat.js` do not exist.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -1083,7 +1112,7 @@ export { aggregateStats } from './stat.js';
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npx vitest run core`
+Run: `npm test -w @skillsupertracker/core`
 Expected: PASS (all core tests).
 
 - [ ] **Step 5: Commit**
@@ -1188,7 +1217,7 @@ describe('findSessionLogs', () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run adapters`
+Run: `npm test -w @skillsupertracker/adapters`
 Expected: FAIL — `../src/dsh/discover.js` does not exist.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -1279,7 +1308,7 @@ export { findSessionLogs } from './dsh/discover.js';
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npx vitest run adapters`
+Run: `npm test -w @skillsupertracker/adapters`
 Expected: PASS, 6 tests.
 
 - [ ] **Step 5: Commit**
@@ -1306,7 +1335,7 @@ git commit -m "feat(adapters): adapter contract + DSH session-log discovery"
   - `DshFingerprint = { format: 'dsh-session-jsonl'; version: number; compression: 'zstd' | 'none' }`
   - `fingerprintDshLog(text: string, compression: 'zstd' | 'none'): DshFingerprint` — parses the first line; requires `type === 'session'`; `version` must be `0` (exactly — spec D8.3: unknown version = explicit downgrade error, never silent); anything else throws `SessionFormatUnsupportedError` with an actionable message.
   - `RowCounts = { skippedLines: number; skippedChunkRows: number; unknownEventTypes: string[] }`
-  - `classifyRow(value: unknown): 'header' | 'event' | 'chunk-row'` — `chunk-row` for `text-chunks` / `reasoning-chunks` / `tool-call-chunks` storage rows (they carry no trajectory meaning — spec's lenient read skips them and counts).
+  - `classifyRow(value: unknown): 'event' | 'chunk-row'` — `chunk-row` for `text-chunks` / `reasoning-chunks` / `tool-call-chunks` storage rows (they carry no trajectory meaning — spec's lenient read skips them and counts).
   - `splitRows(text: string, counts: RowCounts): string[]` — splits decoded plaintext into rows; a trailing fragment without `\n` (torn tail) is dropped and counted in `skippedLines`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -1390,7 +1419,7 @@ describe('classifyRow', () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run adapters`
+Run: `npm test -w @skillsupertracker/adapters`
 Expected: FAIL — modules do not exist.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -1450,7 +1479,7 @@ export interface RowCounts {
   unknownEventTypes: string[];
 }
 
-export type RowKind = 'header' | 'event' | 'chunk-row';
+export type RowKind = 'event' | 'chunk-row';
 
 const CHUNK_ROW_TYPES = new Set(['text-chunks', 'reasoning-chunks', 'tool-call-chunks']);
 
@@ -1493,7 +1522,7 @@ export type { RowCounts, RowKind } from './dsh/jsonl.js';
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npx vitest run adapters`
+Run: `npm test -w @skillsupertracker/adapters`
 Expected: PASS (all adapters tests).
 
 - [ ] **Step 5: Commit**
@@ -1597,7 +1626,8 @@ describe('dshAdapter.parse', () => {
     expect(turn.endReason).toBe('completed');
 
     const kinds = turn.events.map((e) => e.type);
-    expect(kinds).toEqual(['skill-load', 'tool-call', 'artifact', 'tool-call', 'artifact']);
+    expect(kinds).toEqual(['skill-load', 'tool-call', 'artifact', 'tool-call', 'tool-call', 'artifact']);
+    // write 工具调用 + meta.diffs 产物（去重后 1 个 file artifact）、pwsh 工具调用（结果 error 无产物）、git_commit 工具调用 + commit artifact
 
     const skillLoad = turn.events.find((e) => e.type === 'skill-load');
     expect(skillLoad).toMatchObject({ skill: { name: 'writing-plans', sourceRoot: 'C:\\skills\\writing-plans' } });
@@ -1618,7 +1648,7 @@ describe('dshAdapter.parse', () => {
   });
 
   it('rejects an unsupported format version', async () => {
-    const path = join(dir, 'bad.zstd');
+    const path = join(dir, 'bad.jsonl.zstd'); // the .jsonl.zstd suffix selects the zstd decode path
     const bad = JSON.stringify({ type: 'session', version: 99, id: 's', createdAt: 0, delegationDepth: 0 }) + '\n';
     await writeFile(path, compressFrame(bad), 'utf8');
     await expect(dshAdapter.parse(path)).rejects.toThrow(/version 99/);
@@ -1637,7 +1667,7 @@ Note for Step 1: the file-artifact assertion above (`toHaveLength(1)`) encodes t
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run adapters`
+Run: `npm test -w @skillsupertracker/adapters`
 Expected: FAIL — `../src/dsh/parse.js` / `../src/dsh/map.js` do not exist.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -1956,7 +1986,7 @@ export { parseDshText } from './dsh/map.js';
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npx vitest run adapters`
+Run: `npm test -w @skillsupertracker/adapters`
 Expected: PASS. If the two-frame split at character 600 lands exactly on a line boundary such that no line actually spans frames, that is still valid (join works either way); the assertions do not depend on which line spans.
 
 - [ ] **Step 5: Commit**
@@ -1995,7 +2025,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { dshAdapter } from '../src/dsh/parse.js';
 
-const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'fixtures', 'golden', 'sample-1');
+const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'fixtures', 'golden', 'sample-1');
+// test dir = packages/adapters/test → three levels up is the repo root
 
 describe('golden sample regression (spec D8.1)', () => {
   it('parses the anonymized real session to the recorded expected facts', async () => {
@@ -2035,7 +2066,7 @@ describe('golden sample regression (spec D8.1)', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run adapters`
+Run: `npm test -w @skillsupertracker/adapters`
 Expected: FAIL — fixture files do not exist.
 
 - [ ] **Step 3: Generate the golden sample from a real authorized log**
@@ -2068,9 +2099,11 @@ import { dshAdapter } from '../packages/adapters/dist/index.js';
 const FIXTURE_ID = 'session-fixture-0001';
 const FIXTURE_CREATED_AT = 1700000000000;
 const LEAK_TOKENS = ['BaiduSyncdisk', 'baidusyncdisk', 'tafce', 'C:\\Users', 'C:/Users'];
+// NOTE: 'sourceRoot' is deliberately NOT whitelisted — it never appears in real
+// DSH stored events, and if it did, it would be an absolute path that must be redacted.
 const KEEP_STRING_KEYS = new Set([
   'type', 'kind', 'role', 'status', 'reason', 'name', 'provider', 'model', 'origin',
-  'form', 'outcome', 'code', 'sourceRoot', 'callId', 'toolCallId',
+  'form', 'outcome', 'code', 'callId', 'toolCallId',
 ]);
 
 /**
@@ -2095,8 +2128,13 @@ function redact(value: unknown): unknown {
   return undefined;
 }
 
-function anonymizeLine(rawLine: string, timeBase: number): string {
-  const parsed = JSON.parse(rawLine) as Record<string, unknown>;
+function anonymizeLine(rawLine: string, timeBase: number): string | undefined {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(rawLine) as Record<string, unknown>;
+  } catch {
+    return undefined; // torn/unparsable tail line — caller counts and skips
+  }
   const isHeader = parsed.type === 'session';
   const time = typeof parsed.time === 'number' ? parsed.time : null;
   const out = redact(parsed) as Record<string, unknown>;
@@ -2107,6 +2145,10 @@ function anonymizeLine(rawLine: string, timeBase: number): string {
   }
   if (time !== null) {
     out.time = FIXTURE_CREATED_AT + (time - timeBase);
+  }
+  // packed chunk rows carry their timestamps in time0 — rebase those too
+  if (typeof (parsed as { time0?: unknown }).time0 === 'number') {
+    out.time0 = FIXTURE_CREATED_AT + (((parsed as { time0: number }).time0) - timeBase);
   }
   // guard: the skill loader's arguments must keep the skill name
   const data = parsed.data as Record<string, unknown> | undefined;
@@ -2135,7 +2177,18 @@ async function main(): Promise<void> {
   const rows = decoded.text.split('\n').filter((row) => row.length > 0);
   const header = JSON.parse(rows[0]) as Record<string, unknown>;
   const timeBase = typeof header.createdAt === 'number' ? header.createdAt : 0;
-  const outText = rows.map((row) => anonymizeLine(row, timeBase)).join('\n') + '\n';
+  let skippedRawLines = 0;
+  const outLines: string[] = [];
+  for (const row of rows) {
+    const anonymized = anonymizeLine(row, timeBase);
+    if (anonymized === undefined) {
+      skippedRawLines += 1;
+      continue;
+    }
+    outLines.push(anonymized);
+  }
+  if (skippedRawLines > 0) console.warn(`skipped ${skippedRawLines} unparsable raw line(s)`);
+  const outText = outLines.join('\n') + '\n';
   for (const token of LEAK_TOKENS) {
     if (outText.includes(token)) {
       console.error(`anonymization failed: leaked token "${token}"`);
@@ -2208,7 +2261,7 @@ Place the raw copy under `fixtures/raw/` during generation (untracked, ignored),
 
 - [ ] **Step 6: Run tests to verify they pass**
 
-Run: `npx vitest run adapters`
+Run: `npm test -w @skillsupertracker/adapters`
 Expected: PASS — fixture parses, expected facts match, anonymization guards hold.
 
 - [ ] **Step 7: Commit**
@@ -2394,7 +2447,7 @@ describe('runAnalyze', () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run cli`
+Run: `npm test -w skillsupertracker`
 Expected: FAIL — `../src/analyze.js` does not exist.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -2431,7 +2484,8 @@ export async function renderTraceHtml(data: unknown, opts: { template?: string; 
     throw new Error('template is missing the __TRACE_DATA__ placeholder');
   }
   const json = JSON.stringify(data).replaceAll('</', '<\\/');
-  await writeFile(opts.out, template.replace('__TRACE_DATA__', json), 'utf8');
+  // function replacer: a string replacement value would interpret $&, $', $` … sequences in the JSON
+  await writeFile(opts.out, template.replace('__TRACE_DATA__', () => json), 'utf8');
 }
 ```
 
@@ -2601,7 +2655,7 @@ export async function runStat(argv: string[], deps: AnalyzeDeps = {}): Promise<n
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npx vitest run cli`
+Run: `npm test -w skillsupertracker`
 Expected: PASS, 6 tests.
 
 - [ ] **Step 5: Commit**
@@ -2706,7 +2760,7 @@ describe('runStat', () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run cli`
+Run: `npm test -w skillsupertracker`
 Expected: FAIL — stat tests fail against the stub.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -2780,7 +2834,7 @@ export async function runStat(argv: string[], deps: AnalyzeDeps = {}): Promise<n
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npx vitest run cli`
+Run: `npm test -w skillsupertracker`
 Expected: PASS, 4 new + 6 existing.
 
 - [ ] **Step 5: Commit**
@@ -2889,11 +2943,11 @@ describe('toCytoscapeElements (render smoke)', () => {
 });
 ```
 
-Node count note (verified by this test): session + turn-0 + skill + tool = **4 nodes**; edges: session→turn, turn→skill, skill→tool = **3 edges**. The headless elk layout run was empirically verified to compute positions on Node 24 (elkjs falls back to main-thread execution without a Worker).
+Node count note (verified by this test): session + turn-0 + skill + tool = **4 nodes**; edges: session→turn, turn→skill, skill→tool = **3 edges**. The headless elk layout run was empirically verified to compute positions on Node 24 (elkjs falls back to main-thread execution without a Worker) — in the browser the same main-thread execution means very large graphs (hundreds of nodes) will briefly block UI during layout; accepted for MVP and recorded in the README known limitations.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run web`
+Run: `npm test -w @skillsupertracker/web`
 Expected: FAIL — `../src/menu.js` / `../src/tree-view.js` do not exist.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -2908,6 +2962,7 @@ Expected: FAIL — `../src/menu.js` / `../src/tree-view.js` do not exist.
   "type": "module",
   "scripts": {
     "build": "vite build",
+    "test": "vitest run",
     "typecheck": "tsc -p . --noEmit"
   },
   "dependencies": {
@@ -3280,7 +3335,7 @@ mountApp(root);
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npx vitest run web`
+Run: `npm test -w @skillsupertracker/web`
 Expected: PASS (menu tests + headless cytoscape tests). If `cytoscape` import fails in jsdom, keep those tests on the default node environment instead: move `tree-model.test.ts` to use `// @vitest-environment node` in a file-level comment (cytoscape headless needs no DOM).
 
 - [ ] **Step 5: Build the single-file output**
@@ -3341,7 +3396,10 @@ if errorlevel 1 (
   exit /b 1
 )
 node packages\cli\dist\cli.js analyze --open %*
+if errorlevel 1 pause
 ```
+
+(双击无参时 `analyze` 打印用法并 pause，窗口不会闪退；出错同样 pause。)
 
 - [ ] **Step 3: Update README (replace 当前状态 + add 快速开始)**
 
@@ -3376,6 +3434,17 @@ npm test
 ```
 ```
 
+Add a 已知限制 section (keep it honest about MVP):
+
+```markdown
+## 已知限制（MVP）
+
+- `stat` 每次全量解析所有会话（spec D7 允许），会话上百个时明显变慢——P1 的 node:sqlite 增量索引解决
+- 时序树节点按类型着色（heat 在 stat 视图体现），按热度着色属后续打磨
+- 大会话（数百节点）的 elk 布局在主线程计算（单文件无 Worker），布局期间界面短暂卡顿
+- 仅在写操作上完全只读；技能目录管理（冻结/软删除等）P1 起分层交付
+```
+
 Keep the 核心决策速览 table, the spec link, and the License 待定 note unchanged in substance.
 
 - [ ] **Step 4: Full verification (verification-before-completion discipline)**
@@ -3388,10 +3457,10 @@ npm test                      # every package green (core/adapters/cli/web)
 npm run build                 # tsc for core/adapters/cli + vite single-file web + template copy
 npm run typecheck             # every package typechecks
 node packages/cli/dist/cli.js analyze fixtures/golden/sample-1 --out dist/smoke-analyze.html
-node packages/cli/dist/cli.js stat --root fixtures/golden --out dist/smoke-stat.html
+node packages/cli/dist/cli.js stat --root fixtures --out dist/smoke-stat.html
 ```
 
-Then confirm: `dist/smoke-analyze.html` contains `"kind":"analyze"` and a skill name; `dist/smoke-stat.html` contains `"kind":"stat"`; both are self-contained (no `src="/assets` references); `packages/cli/templates/trace-view.html` exists. Clean up the smoke outputs (`git status` must show them as untracked only if not ignored — add `dist/` already ignored at repo root, so write them under `packages/cli/dist/smoke/` or root `dist/`; simplest: put them in root `dist/`, which `.gitignore` already covers).
+Then confirm: `dist/smoke-analyze.html` contains `"kind":"analyze"` and a skill name; `dist/smoke-stat.html` contains `"kind":"stat"` AND at least one skill name from `fixtures/golden/sample-1/expected.json` (`--root fixtures` walks project `golden` → session `sample-1`; `fixtures/golden` alone would find nothing because discovery expects two directory levels); both are self-contained (no `src="/assets` references); `packages/cli/templates/trace-view.html` exists. Clean up the smoke outputs (`git status` must show them as untracked only if not ignored — add `dist/` already ignored at repo root, so write them under `packages/cli/dist/smoke/` or root `dist/`; simplest: put them in root `dist/`, which `.gitignore` already covers).
 
 - [ ] **Step 5: Commit**
 
@@ -3400,13 +3469,15 @@ git add packages/cli/scripts/copy-template.mjs skillsupertracker.bat README.md
 git commit -m "feat: wire web template into CLI, add .bat launcher and quick start"
 ```
 
-- [ ] **Step 6: Push (whoever modified commits; push requires the wider sandbox)**
+- [ ] **Step 6: Push (whoever modified commits)**
 
 ```bash
 git push origin main
 ```
 
-If the sandbox denies the push (`[sandbox: file access denied ...]` or network/EPERM), retry the EXACT same command once with `sandbox_permissions: danger-full-access` and a one-sentence justification ("推送 skillsupertracker MVP 实施成果到 GitHub 远端需要网络/凭据访问"). After the push, verify with `git log origin/main -1 --oneline` and `git status` (clean working tree except ignored files).
+If the push fails on sandbox/credential grounds, report the exact failure to the user — do not attempt escalation unless the session's approval policy permits it. After the push, verify with `git log origin/main -1 --oneline` and `git status` (clean working tree except ignored files).
+
+Note on npm publishing (spec D6 `npx skillsupertracker` path): the cli package already carries `files` + `prepublishOnly` (Task 1), so publishing is `npm publish -w @skillsupertracker/core`, then `-w @skillsupertracker/adapters`, then the cli (the `0.1.0` version ranges resolve against the registry). The workspace packages are `private: true` until the user opts into publishing; MVP verification stays local build + `.bat`.
 
 ---
 
@@ -3415,7 +3486,7 @@ If the sandbox denies the push (`[sandbox: file access denied ...]` or network/E
 - **Spec coverage:** D1/D2 (independent tool, adapter-first contract) → Tasks 5–7 (`TraceAdapter` contract + DSH-only implementation, agent-neutral schema); D3 (TS/Node ≥22.15, zod-only runtime deps, vite-plugin-singlefile, cytoscape/elk, vitest) → Tasks 1, 3, 11; D4 (vendored `scanZstdFrames`, per-frame decode, torn-frame tolerance) → Task 2 + fixtures test; D5 (Cytoscape + elk, self-drawn cxttap menu, no cxtmenu) → Task 11; D6 (`analyze --open` + `.bat`, no serve) → Tasks 9, 12; D7 (stat in-memory JSON + static HTML) → Tasks 4, 10; D8 (golden fixtures + lenient parse + fingerprint + torn tolerance + JSON Schema contract) → Tasks 3, 6, 7, 8; §五 component tree (`packages/core|adapters|cli|web`, `fixtures/`, `zstd-frames.ts`, `types.ts`, `dsh/`, `claude/` deferred) → Tasks 1, 5, 11 (claude dir intentionally absent — P1); §六 (no write ops in MVP; menu renders L1 disabled) → Task 11 `menuStateFor`; §七 test strategy → every task's tests. Explicitly out of MVP and NOT in this plan: serve, Claude adapter, recommendations, forkprobe, node:sqlite, freeze/delete implementation, trend timeline visualization, LICENSE choice.
 - **Placeholder scan:** no TBD/TODO/placeholder steps; every step has runnable code or exact commands; the only "replace stub" note (Task 9 `stat.ts` stub → Task 10) ships the full replacement code inline.
 - **Type consistency:** `scanZstdFrames`/`decodeZstdLog` signatures identical across Tasks 2/7/8; `TraceAdapter`/`LogSource` (Task 5) match usage in Tasks 7/9/10; `TraceSession` shape (Task 3) matches `parseDshText` output (Task 7) and web `app.ts` consumption (Task 11); `buildTraceTree`/`aggregateStats` (Task 4) match web/cli usage; `runAnalyze`/`runStat`/`main` signatures match cli tests; `menuStateFor` (Task 11) matches its tests.
-- **Known deliberate deviations (documented):** chunk rows are skipped+counted, not expanded (they carry assistant deltas the trajectory does not model); torn tail is dropped, not partially recovered (committed-prefix semantics, same as DSH's `readRaw`); `stat` reads full logs rather than header-only (local volumes, MVP simplicity); timestamps in `perDay` are UTC; **「更新」is excluded from the right-click menu per spec §六** (semantics undefined until P1+); workspace deps use plain version ranges because npm rejects the `workspace:` protocol (verified); vitest project filtering uses positional arguments because vitest 4 removed `--project` (verified); `fixtures/anonymize.ts` imports built `dist` output because Node type stripping does not remap `.js`→`.ts` specifiers (verified).
+- **Known deliberate deviations (documented):** chunk rows are skipped+counted, not expanded (they carry assistant deltas the trajectory does not model); torn tail is dropped, not partially recovered (committed-prefix semantics, same as DSH's `readRaw`); `stat` reads full logs rather than header-only (local volumes, MVP simplicity); timestamps in `perDay` are UTC; **「更新」is excluded from the right-click menu per spec §六** (semantics undefined until P1+); node colors encode node KIND rather than heat (spec §五's "颜色=heat" simplified for MVP — heat lives in the stat view); workspace deps use plain version ranges because npm rejects the `workspace:` protocol (verified); vitest 4 ignores `vitest.workspace.ts`, so projects are declared in the root `vitest.config.ts` and per-package runs use `npm test -w <pkg>` (verified); `fixtures/anonymize.ts` imports built `dist` output because Node type stripping does not remap `.js`→`.ts` specifiers (verified); npm publishing is prepared but deferred (packages stay `private` until the user opts in).
 
 ## Execution Handoff
 
