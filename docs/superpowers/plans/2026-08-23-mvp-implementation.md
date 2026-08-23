@@ -21,6 +21,9 @@
 - File naming: unified name **skillsupertracker** everywhere (spec §十). No LICENSE file (License 待定) — never create one.
 - Workspace root is the repo root `E:\BaiduSyncdisk\Data\vibe-coding\skillsupertracker`; Git remote is `origin` → `https://github.com/tafcear/skillsupertracker`. Git MCP tools are NOT available for this repo (they are scoped to another repo) — use `git` CLI via pwsh for all git operations.
 - npm cache must point inside the workspace in the sandbox: set `$env:npm_config_cache = "<repo>\.npm-cache-tmp"` before any `npm install`/`npm view`.
+- **npm does NOT support the `workspace:` protocol** (`EUNSUPPORTEDPROTOCOL`, verified empirically with npm 11.17). Workspace dependencies use plain version ranges (`"0.1.0"`); npm links the local workspace package when the version range matches.
+- **vitest 4 removed the `--project` flag** (verified: every value reports "No projects matched the filter"). Filter one project with a POSITIONAL argument: `npx vitest run core` — the project name is the package directory basename (`core`/`adapters`/`cli`/`web`); `test.name` inside a per-package config does NOT name the project in workspace mode, so per-package configs omit it.
+- **Node native type stripping does NOT remap `.js` → `.ts` import specifiers** (verified on Node 24.19): scripts executed directly with `node file.ts` must import the BUILT `dist/*.js` output, never TS sources whose internal imports use `.js` extensions.
 - Real session logs for golden fixtures: user-authorized (spec §十.3), **strict anonymization** — no message bodies, no keys, no absolute paths, no session ids; only event structure and call sequences. Use `fixtures/anonymize.ts` (Task 8); never commit raw logs.
 
 ---
@@ -57,7 +60,7 @@ Run (from repo root; set npm cache first):
 ```powershell
 $env:npm_config_cache = "E:\BaiduSyncdisk\Data\vibe-coding\skillsupertracker\.npm-cache-tmp"
 npm install
-npx vitest run --project core
+npx vitest run core
 ```
 Expected: FAIL — `Cannot find module '../src/index.js'` (the module does not exist yet).
 
@@ -156,7 +159,7 @@ packages/cli/templates/
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  test: { name: 'core', include: ['test/**/*.test.ts'] },
+  test: { include: ['test/**/*.test.ts'] },
 });
 ```
 
@@ -177,7 +180,7 @@ export const coreVersion = '0.1.0';
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "dependencies": { "@skillsupertracker/core": "workspace:*" },
+  "dependencies": { "@skillsupertracker/core": "0.1.0" },
   "scripts": {
     "build": "tsc -p .",
     "typecheck": "tsc -p . --noEmit"
@@ -202,7 +205,7 @@ import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
-  test: { name: 'adapters', include: ['test/**/*.test.ts'] },
+  test: { include: ['test/**/*.test.ts'] },
   resolve: {
     alias: {
       '@skillsupertracker/core': fileURLToPath(new URL('../core/src/index.ts', import.meta.url)),
@@ -222,8 +225,8 @@ export default defineConfig({
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "dependencies": {
-    "@skillsupertracker/adapters": "workspace:*",
-    "@skillsupertracker/core": "workspace:*"
+    "@skillsupertracker/adapters": "0.1.0",
+    "@skillsupertracker/core": "0.1.0"
   },
   "scripts": {
     "build": "tsc -p . && node scripts/copy-template.mjs",
@@ -249,7 +252,7 @@ import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
-  test: { name: 'cli', include: ['test/**/*.test.ts'] },
+  test: { include: ['test/**/*.test.ts'] },
   resolve: {
     alias: {
       '@skillsupertracker/core': fileURLToPath(new URL('../core/src/index.ts', import.meta.url)),
@@ -263,7 +266,7 @@ Note: `packages/cli/scripts/copy-template.mjs` is created in Task 11; until then
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run --project core`
+Run: `npx vitest run core`
 Expected: PASS, 1 test.
 
 - [ ] **Step 5: Verify install + typecheck**
@@ -398,7 +401,7 @@ describe('decodeZstdLog', () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run --project core`
+Run: `npx vitest run core`
 Expected: FAIL — modules `../src/zstd-frames.js` and `../src/decompress.js` do not exist.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -522,7 +525,7 @@ export type { DecodedZstdLog } from './decompress.js';
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npx vitest run --project core`
+Run: `npx vitest run core`
 Expected: PASS, 8 tests (1 smoke + 6 frames + … — count is 1+6+3=10).
 
 - [ ] **Step 5: Commit**
@@ -597,9 +600,7 @@ describe('traceSessionSchema', () => {
 
   it('rejects a missing event type member', () => {
     const bad = structuredClone(validSession);
-    bad.turns[0].events.push({ type: 'tool-call', time: 1, tool: { name: 'x' } }); // fine
-    bad.turns[0].events.push({ type: 'tool-call', time: 1, tool: { name: 'x' }, attributedSkill: 's' }); // fine
-    bad.turns[0].events[0] = { type: 'skill-load', time: 1, skill: { name: 'x' }, attributedSkill: 'y' }; // forbidden key
+    bad.turns[0].events[0] = { type: 'skill-load', time: 1, skill: { name: 'x' }, attributedSkill: 'y' }; // forbidden key on skill-load
     expect(traceSessionSchema.safeParse(bad).success).toBe(false);
   });
 
@@ -640,7 +641,7 @@ describe('traceSessionSchema', () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run --project core`
+Run: `npx vitest run core`
 Expected: FAIL — `../src/trace-schema.js` does not exist.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -651,7 +652,7 @@ Expected: FAIL — `../src/trace-schema.js` does not exist.
 import { z } from 'zod';
 
 export const traceEventSchema = z.discriminatedUnion('type', [
-  z.object({
+  z.strictObject({
     type: z.literal('skill-load'),
     time: z.number().int(),
     skill: z.object({
@@ -659,7 +660,7 @@ export const traceEventSchema = z.discriminatedUnion('type', [
       sourceRoot: z.string().optional(),
     }),
   }),
-  z.object({
+  z.strictObject({
     type: z.literal('tool-call'),
     time: z.number().int(),
     tool: z.object({
@@ -669,7 +670,7 @@ export const traceEventSchema = z.discriminatedUnion('type', [
     outcome: z.enum(['ok', 'error']).optional(),
     attributedSkill: z.string().optional(),
   }),
-  z.object({
+  z.strictObject({
     type: z.literal('artifact'),
     time: z.number().int(),
     artifact: z.discriminatedUnion('kind', [
@@ -749,8 +750,8 @@ export type { TraceEvent, TraceTurn, TraceSession, StatReport } from './trace-sc
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npx vitest run --project core`
-Expected: PASS (all core tests green; zod default is strict-unknown-keys? No — note: `z.object` in zod v4 strips unknown keys by default, so the `attributedSkill` on skill-load test only fails if we used `.strict()`. If it does not fail, change that test to assert an invalid `type` instead, and run again. The key invariant is: unknown event types are rejected — that one must fail without the schema and pass with it.)
+Run: `npx vitest run core`
+Expected: PASS (all core tests green). Note: the three event variants are `z.strictObject` — unknown keys are rejected, so the "forbidden key on skill-load" test fails before the schema exists and passes deterministically after. This strictness is the trajectory-side drift guard (spec D8.5); the LENIENT read of DSH input logs is a separate concern handled in the adapters package.
 
 - [ ] **Step 5: Commit**
 
@@ -914,7 +915,7 @@ describe('aggregateStats', () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run --project core`
+Run: `npx vitest run core`
 Expected: FAIL — `../src/tree.js` / `../src/stat.js` do not exist.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -1082,7 +1083,7 @@ export { aggregateStats } from './stat.js';
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npx vitest run --project core`
+Run: `npx vitest run core`
 Expected: PASS (all core tests).
 
 - [ ] **Step 5: Commit**
@@ -1187,7 +1188,7 @@ describe('findSessionLogs', () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run --project adapters`
+Run: `npx vitest run adapters`
 Expected: FAIL — `../src/dsh/discover.js` does not exist.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -1278,7 +1279,7 @@ export { findSessionLogs } from './dsh/discover.js';
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npx vitest run --project adapters`
+Run: `npx vitest run adapters`
 Expected: PASS, 6 tests.
 
 - [ ] **Step 5: Commit**
@@ -1389,7 +1390,7 @@ describe('classifyRow', () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run --project adapters`
+Run: `npx vitest run adapters`
 Expected: FAIL — modules do not exist.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -1492,7 +1493,7 @@ export type { RowCounts, RowKind } from './dsh/jsonl.js';
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npx vitest run --project adapters`
+Run: `npx vitest run adapters`
 Expected: PASS (all adapters tests).
 
 - [ ] **Step 5: Commit**
@@ -1579,7 +1580,7 @@ const LOG_TEXT = [
 describe('dshAdapter.parse', () => {
   it('maps a full synthetic log into the trajectory', async () => {
     const path = join(dir, 'session.jsonl.zstd');
-    await writeFile(path, compressFrame(LOG_TEXT.slice(0, 600)) + compressFrame(LOG_TEXT.slice(600)), 'utf8');
+    await writeFile(path, Buffer.concat([compressFrame(LOG_TEXT.slice(0, 600)), compressFrame(LOG_TEXT.slice(600))]));
     // ^ two frames; a JSONL line spans the frame boundary (lenient read joins them)
     const trace = await dshAdapter.parse(path);
 
@@ -1636,7 +1637,7 @@ Note for Step 1: the file-artifact assertion above (`toHaveLength(1)`) encodes t
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run --project adapters`
+Run: `npx vitest run adapters`
 Expected: FAIL — `../src/dsh/parse.js` / `../src/dsh/map.js` do not exist.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -1671,16 +1672,7 @@ interface PendingCall {
   event: Extract<TraceEvent, { type: 'tool-call' }>;
 }
 
-interface SkillLoadPending {
-  callId: string;
-  event: Extract<TraceEvent, { type: 'skill-load' }>;
-}
-
 type OpenTurn = TraceTurn & { events: TraceEvent[] };
-
-function asNumber(value: unknown): number {
-  return typeof value === 'number' ? value : 0;
-}
 
 function toolTarget(name: string, args: unknown): string | undefined {
   if (!FS_TOOLS_WITH_PATH.has(name)) return undefined;
@@ -1728,7 +1720,7 @@ export function parseDshText(text: string, _fingerprint: DshFingerprint): TraceS
 
   const turns: TraceTurn[] = [];
   const calls = new Map<string, PendingCall>();
-  let current: { turn: OpenTurn; currentSkill?: string; pendingSkill?: SkillLoadPending; seenArtifacts: Set<string> } | undefined;
+  let current: { turn: OpenTurn; currentSkill?: string; pendingSkills: Map<string, Extract<TraceEvent, { type: 'skill-load' }>>; seenArtifacts: Set<string> } | undefined;
   let title: string | undefined;
   let provider: string | undefined;
   let model: string | undefined;
@@ -1762,7 +1754,7 @@ export function parseDshText(text: string, _fingerprint: DshFingerprint): TraceS
           events: [],
         };
         turns.push(turn);
-        current = { turn: turn as OpenTurn, seenArtifacts: new Set() };
+        current = { turn: turn as OpenTurn, pendingSkills: new Map(), seenArtifacts: new Set() };
         break;
       }
       case 'turn/end': {
@@ -1797,7 +1789,7 @@ export function parseDshText(text: string, _fingerprint: DshFingerprint): TraceS
             current.currentSkill = skillName;
             const event: Extract<TraceEvent, { type: 'skill-load' }> = { type: 'skill-load', time, skill: { name: skillName } };
             current.turn.events.push(event);
-            current.pendingSkill = { callId, event };
+            current.pendingSkills.set(callId, event);
           }
         } else if (current !== undefined) {
           const attributedSkill = current.currentSkill;
@@ -1824,9 +1816,12 @@ export function parseDshText(text: string, _fingerprint: DshFingerprint): TraceS
         }
         if (current === undefined) break;
 
-        if (call !== undefined && !errored && call.name === 'skill' && current.pendingSkill?.callId === callId) {
-          const sourceRoot = extractSkillSourceRoot(data.message);
-          if (sourceRoot !== undefined) current.pendingSkill.event.skill.sourceRoot = sourceRoot;
+        if (call !== undefined && !errored && call.name === 'skill') {
+          const pending = current.pendingSkills.get(callId);
+          if (pending !== undefined) {
+            const sourceRoot = extractSkillSourceRoot(data.message);
+            if (sourceRoot !== undefined) pending.skill.sourceRoot = sourceRoot;
+          }
         }
         if (errored) break;
 
@@ -1918,7 +1913,7 @@ export function parseDshText(text: string, _fingerprint: DshFingerprint): TraceS
 }
 ```
 
-Note: the `asNumber` helper is intentionally unused in the final mapping (turn/step live only inside tool records that we do not need for the tree) — delete it before committing; keep the implementation minimal.
+Note: the `pendingSkills` Map (keyed by callId) replaces a single pending slot so parallel skill calls in one step still get their `sourceRoot` backfilled when their results arrive out of order.
 
 `packages/adapters/src/dsh/parse.ts`:
 
@@ -1961,7 +1956,7 @@ export { parseDshText } from './dsh/map.js';
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npx vitest run --project adapters`
+Run: `npx vitest run adapters`
 Expected: PASS. If the two-frame split at character 600 lands exactly on a line boundary such that no line actually spans frames, that is still valid (join works either way); the assertions do not depend on which line spans.
 
 - [ ] **Step 5: Commit**
@@ -1977,7 +1972,7 @@ git commit -m "feat(adapters): DSH event mapping + dshAdapter"
 
 **Files:**
 - Create: `fixtures/README.md`
-- Create: `fixtures/anonymize.ts` (Node 24 native type-stripping runner — no build step)
+- Create: `fixtures/anonymize.ts` (runs on Node 24 native type stripping; imports the built `dist` output of core/adapters — see Global Constraints)
 - Create: `fixtures/golden/sample-1/session.jsonl.zstd` (generated from a real, user-authorized log — never commit the raw log)
 - Create: `fixtures/golden/sample-1/expected.json` (generated)
 - Create: `packages/adapters/test/fixtures.test.ts`
@@ -1985,7 +1980,7 @@ git commit -m "feat(adapters): DSH event mapping + dshAdapter"
 
 **Interfaces:**
 - Consumes: `dshAdapter` from Task 7; `decodeZstdLog` from core.
-- Produces: the golden-sample regression (spec D8.1): a checked-in anonymized real session plus its expected parse facts; `fixtures/anonymize.ts <src-zstd> <dst-dir>` rewrites a real log into an anonymized `session.jsonl.zstd` and prints the expected facts.
+- Produces: the golden-sample regression (spec D8.1): a checked-in anonymized real session plus its expected parse facts; `fixtures/anonymize.ts <src-zstd> <dst-dir>` rewrites a real log into an anonymized `session.jsonl.zstd`, fails on leaked machine tokens, parses the result with the real adapter, and writes `expected.json`.
 
 Anonymization rules (spec §十.3 — 严格脱敏): keep the event envelope (`type/seq/time/surfaceOp/sourceEventSeqs/ignorable`), `turn/step/callId` structure, skill names, tool names, outcome presence, `usage` numbers, and `reason.kind` values; **redact every other string** (message bodies, file paths, repo paths, titles, cwd, session id → `session-fixture-0001`); delete the header `cwd` field; rebase all timestamps so `createdAt = 1700000000000` preserving relative offsets; keep numbers/booleans verbatim; packed chunk rows keep their structure with payload strings replaced by `<redacted>`.
 
@@ -2040,34 +2035,51 @@ describe('golden sample regression (spec D8.1)', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run --project adapters`
+Run: `npx vitest run adapters`
 Expected: FAIL — fixture files do not exist.
 
 - [ ] **Step 3: Generate the golden sample from a real authorized log**
 
-Pick ONE real, finished session (authorized in spec §十.3). Recommended source: the most recently modified `session.jsonl.zstd` under `C:\Users\tafce\.dsh\sessions\--E-BaiduSyncdisk-Data-vibe-coding-kimi-tide--\` (a completed project session with rich skill/tool/artifact activity). Copy it to a local temp path first — never point the script output at `~/.dsh`.
+Pick ONE real, finished session (authorized in spec §十.3). Recommended source: the most recently modified `session.jsonl.zstd` under `C:\Users\tafce\.dsh\sessions\--E-BaiduSyncdisk-Data-vibe-coding-kimi-tide--\` (a completed project session with rich skill/tool/artifact activity). Copy it to `fixtures/raw/` (gitignored) first — never point the script at `~/.dsh` and never commit the raw copy.
 
-`fixtures/anonymize.ts`:
+`fixtures/anonymize.ts` (imports the BUILT dist output — Node type stripping does not remap `.js` import specifiers, and the sources use `.js` extensions; see Global Constraints):
 
 ```ts
 /**
  * Golden-sample generator (spec §十.3): strictly anonymize a real DSH session
- * log into a checked-in fixture. Keeps event structure and call sequences;
- * redacts every other string. Run: `node fixtures/anonymize.ts <src> <dst-dir>`
- * (Node >=23.6 native type stripping; dev machine is Node 24).
+ * log into a checked-in fixture, parse the result with the real adapter, and
+ * record the expected facts next to it. Run with Node >=23.6 native type
+ * stripping (dev machine is Node 24):
+ *
+ *   npm run build -w @skillsupertracker/core && npm run build -w @skillsupertracker/adapters
+ *   node fixtures/anonymize.ts <src-session.jsonl.zstd> <dst-session-dir>
+ *
+ * Keeps event envelopes, turn/step/callId structure, skill and tool names,
+ * usage numbers and reason kinds; redacts every other string, deletes the
+ * header cwd, rebases timestamps to a fixed epoch preserving offsets. Exits
+ * non-zero when the anonymized text still contains machine-identifying tokens.
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { zstdCompressSync, constants as zlibConstants } from 'node:zlib';
-import { decodeZstdLog } from '../packages/core/src/decompress.ts';
+import { decodeZstdLog } from '../packages/core/dist/index.js';
+import { dshAdapter } from '../packages/adapters/dist/index.js';
 
 const FIXTURE_ID = 'session-fixture-0001';
 const FIXTURE_CREATED_AT = 1700000000000;
+const LEAK_TOKENS = ['BaiduSyncdisk', 'baidusyncdisk', 'tafce', 'C:\\Users', 'C:/Users'];
 const KEEP_STRING_KEYS = new Set([
   'type', 'kind', 'role', 'status', 'reason', 'name', 'provider', 'model', 'origin',
   'form', 'outcome', 'code', 'sourceRoot', 'callId', 'toolCallId',
 ]);
 
+/**
+ * Recursive redactor: keep numbers/booleans and whitelisted structural keys
+ * (type/kind/role/status/reason/name/provider/model/...), replace every other
+ * string with `<redacted>`. Skill names survive because the skill tool-call
+ * arguments use the whitelisted `name` key; message bodies, file paths, repo
+ * paths, titles, message ids and cwd all sit on non-whitelisted keys.
+ */
 function redact(value: unknown): unknown {
   if (typeof value === 'string') return '<redacted>';
   if (typeof value === 'number' || typeof value === 'boolean' || value === null) return value;
@@ -2076,38 +2088,35 @@ function redact(value: unknown): unknown {
     const out: Record<string, unknown> = {};
     for (const [key, v] of Object.entries(value)) {
       if (KEEP_STRING_KEYS.has(key) && typeof v === 'string') out[key] = v;
-      else if (key === 'name' && typeof v === 'string' && value.type === 'tool/call' && v === 'skill') out[key] = v;
       else out[key] = redact(v);
     }
     return out;
   }
   return undefined;
 }
-```
 
-Wait — `redact` needs the context (the tool name inside `arguments` for skill calls: `{"name":"writing-plans"}` must keep the skill name). The generic rule above keeps key `name` on skill tool-call arguments. But `KEEP_STRING_KEYS` globally keeps `name` — good (event `name` = tool name, `reason` enum, etc.). `callId`/`toolCallId` kept (structure). `time`/`seq`/`turn`/`step`/`createdAt` numbers pass through the number branch. Content strings all become `<redacted>` because their keys (`text`, `content`, `title`, `message`, `path`, `file_path`, `repo_path`, `cwd`, `id`, …) are not in the keep set. But `id` of messages — not kept → redacted (good). Header `id` — key `id` not in keep set → redacted; we must override header `id` explicitly. `title` redacted (good). `provider`/`model` kept (fine, generic facts).
-
-Rewrite pass:
-
-```ts
 function anonymizeLine(rawLine: string, timeBase: number): string {
-  const parsed = JSON.parse(rawLine);
-  const isHeader = parsed?.type === 'session';
+  const parsed = JSON.parse(rawLine) as Record<string, unknown>;
+  const isHeader = parsed.type === 'session';
   const time = typeof parsed.time === 'number' ? parsed.time : null;
-  let out: Record<string, unknown> = redact(parsed) as Record<string, unknown>;
+  const out = redact(parsed) as Record<string, unknown>;
   if (isHeader) {
     out.id = FIXTURE_ID;
     out.createdAt = FIXTURE_CREATED_AT;
     delete out.cwd;
   }
   if (time !== null) {
-    const offset = time - (timeBase ?? time);
-    out.time = FIXTURE_CREATED_AT + offset;
+    out.time = FIXTURE_CREATED_AT + (time - timeBase);
   }
-  // guard: skill tool-call arguments keep the skill name
-  if (parsed?.type === 'tool/call' && parsed.data?.name === 'skill') {
+  // guard: the skill loader's arguments must keep the skill name
+  const data = parsed.data as Record<string, unknown> | undefined;
+  if (parsed.type === 'tool/call' && data?.name === 'skill') {
     let args: unknown;
-    try { args = JSON.parse(parsed.data.arguments); } catch { args = undefined; }
+    try {
+      args = JSON.parse(data.arguments as string);
+    } catch {
+      args = undefined;
+    }
     if (typeof args === 'object' && args !== null && typeof (args as { name?: unknown }).name === 'string') {
       (out.data as Record<string, unknown>).arguments = JSON.stringify({ name: (args as { name: string }).name });
     }
@@ -2115,7 +2124,7 @@ function anonymizeLine(rawLine: string, timeBase: number): string {
   return JSON.stringify(out);
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const src = process.argv[2];
   const dstDir = process.argv[3];
   if (src === undefined || dstDir === undefined) {
@@ -2123,50 +2132,52 @@ function main(): void {
     process.exit(2);
   }
   const decoded = decodeZstdLog(readFileSync(src));
-  const rows = decoded.text.split('\n').filter((r) => r.length > 0);
-  const header = JSON.parse(rows[0]);
+  const rows = decoded.text.split('\n').filter((row) => row.length > 0);
+  const header = JSON.parse(rows[0]) as Record<string, unknown>;
   const timeBase = typeof header.createdAt === 'number' ? header.createdAt : 0;
   const outText = rows.map((row) => anonymizeLine(row, timeBase)).join('\n') + '\n';
-  const outBuffer = zstdCompressSync(Buffer.from(outText, 'utf8'), { params: { [zlibConstants.ZSTD_c_checksumFlag]: 1 } });
+  for (const token of LEAK_TOKENS) {
+    if (outText.includes(token)) {
+      console.error(`anonymization failed: leaked token "${token}"`);
+      process.exit(1);
+    }
+  }
   mkdirSync(dstDir, { recursive: true });
-  writeFileSync(join(dstDir, 'session.jsonl.zstd'), outBuffer);
+  const fixturePath = join(dstDir, 'session.jsonl.zstd');
+  writeFileSync(fixturePath, zstdCompressSync(Buffer.from(outText, 'utf8'), { params: { [zlibConstants.ZSTD_c_checksumFlag]: 1 } }));
 
+  // Lock in the expected facts with the real adapter — the regression test compares against this file.
+  const trace = await dshAdapter.parse(fixturePath);
+  const events = trace.turns.flatMap((turn) => turn.events);
   const expected = {
-    agent: 'dsh',
-    schemaVersion: 1,
-    turnCount: rows.filter((r) => { try { return JSON.parse(r).type === 'turn/start'; } catch { return false; } }).length,
-    skillLoads: rows
-      .filter((r) => { try { const p = JSON.parse(r); return p.type === 'tool/call' && p.data?.name === 'skill'; } catch { return false; } })
-      .map((r) => ({ name: (JSON.parse(JSON.parse(r).data.arguments) as { name: string }).name })),
-    toolCallCount: rows.filter((r) => { try { const p = JSON.parse(r); return p.type === 'tool/call' && p.data?.name !== 'skill'; } catch { return false; } }).length,
-    artifactCount: -1, // filled after a verification parse below
-    stats: { skippedLines: 0, skippedChunkRows: rows.filter((r) => { try { return ['text-chunks', 'reasoning-chunks', 'tool-call-chunks'].includes(JSON.parse(r).type); } catch { return false; } }).length, unknownEventTypes: [] },
+    agent: trace.agent,
+    schemaVersion: trace.schemaVersion,
+    turnCount: trace.turns.length,
+    skillLoads: events.filter((e) => e.type === 'skill-load').map((e) => ({ name: e.skill.name })),
+    toolCallCount: events.filter((e) => e.type === 'tool-call').length,
+    artifactCount: events.filter((e) => e.type === 'artifact').length,
+    stats: trace.stats,
   };
-  console.log('write expected.json with the artifactCount/toolCallCount/etc. computed from an actual dshAdapter.parse run on the fixture (see next step), then spot-check the fixture text for leakage (BaiduSyncdisk/tafce/absolute paths must be absent).');
-  console.log(JSON.stringify(expected, null, 2));
+  writeFileSync(join(dstDir, 'expected.json'), JSON.stringify(expected, null, 2) + '\n');
+  console.log(`wrote ${fixturePath} + expected.json (${trace.turns.length} turns, ${expected.toolCallCount} tool calls)`);
 }
 
-main();
+main().catch((error: unknown) => {
+  console.error(error);
+  process.exit(1);
+});
 ```
 
-- [ ] **Step 4: Verify anonymization + finalize expected.json**
-
-Run the generator against the chosen real log, then parse the fixture with the built adapter to fill the real numbers:
+- [ ] **Step 4: Generate and verify**
 
 ```powershell
-node fixtures/anonymize.ts "C:\Users\tafce\.dsh\sessions\--E-BaiduSyncdisk-Data-vibe-coding-kimi-tide--\<session-dir>\session.jsonl.zstd" "fixtures\golden\sample-1"
-npx tsx -e "..." # NOT needed — instead: add a temporary vitest run or use the fixtures test itself
+# copy the chosen real log into the gitignored raw dir first, then:
+npm run build -w @skillsupertracker/core
+npm run build -w @skillsupertracker/adapters
+node fixtures/anonymize.ts "fixtures\raw\<real-session>.zstd" "fixtures\golden\sample-1"
 ```
 
-Concretely: create `fixtures/golden/sample-1/expected.json` by hand with the values printed by the generator (turnCount, skillLoads, toolCallCount, stats) plus `artifactCount` obtained by a one-off `node --experimental-strip-types` (Node 24 runs TS natively) script that calls `dshAdapter.parse` on the fixture — or simpler: temporarily set `artifactCount` from a quick node eval:
-
-```powershell
-node -e "import('E:/BaiduSyncdisk/Data/vibe-coding/skillsupertracker/packages/adapters/src/dsh/parse.ts').then(async m => { const t = await m.dshAdapter.parse('E:/BaiduSyncdisk/Data/vibe-coding/skillsupertracker/fixtures/golden/sample-1/session.jsonl.zstd'); console.log(JSON.stringify({ artifactCount: t.turns.flatMap(x=>x.events).filter(e=>e.type==='artifact').length, stats: t.stats, turnCount: t.turns.length })); })"
-```
-
-(Relative imports inside `parse.ts` use `.js` extensions — Node type-stripping resolves them against source; the import above works because Node 24 strips types. If it complains, run `npm run build -w @skillsupertracker/adapters` first and import `packages/adapters/dist/index.js` instead.)
-
-Then **inspect the fixture output text** (decode the generated `session.jsonl.zstd` with a one-off node eval using `decodeZstdLog`) and confirm: no `BaiduSyncdisk`, no `tafce`, no `C:\Users` absolute paths, skill names intact, `<redacted>` strings in place. Write the final `expected.json` with all real numbers.
+Expected: the script writes `fixtures/golden/sample-1/session.jsonl.zstd` AND `expected.json` (facts computed by the real adapter), printing a turn/tool-call summary. The leakage scan runs inside the script — a non-zero exit means a redaction rule missed a token; fix the rule and rerun. Then manually spot-check `expected.json` (skill names present, counts plausible, `stats` populated).
 
 - [ ] **Step 5: Write the supporting docs + gitignore guard**
 
@@ -2197,7 +2208,7 @@ Place the raw copy under `fixtures/raw/` during generation (untracked, ignored),
 
 - [ ] **Step 6: Run tests to verify they pass**
 
-Run: `npx vitest run --project adapters`
+Run: `npx vitest run adapters`
 Expected: PASS — fixture parses, expected facts match, anonymization guards hold.
 
 - [ ] **Step 7: Commit**
@@ -2287,8 +2298,8 @@ export const SKILL_SESSION_LINES = [
 `packages/cli/test/analyze.test.ts`:
 
 ```ts
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readFile, rm, stat } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { runAnalyze } from '../src/analyze.js';
 import { makeSession, makeTempDir, removeDir, SKILL_SESSION_LINES, writeStubTemplate } from './helpers.js';
@@ -2304,6 +2315,14 @@ beforeEach(async () => {
 afterEach(async () => {
   await removeDir(dir);
 });
+
+async function isFile(p: string): Promise<boolean> {
+  try {
+    return (await stat(p)).isFile();
+  } catch {
+    return false;
+  }
+}
 
 const deps = (template: string) => ({
   template,
@@ -2338,13 +2357,14 @@ describe('runAnalyze', () => {
   it('defaults the output name to analyze-<slug>.html and honors --open', async () => {
     const sessionDir = await makeSession(dir, '--proj--', 'session-aaa', SKILL_SESSION_LINES);
     const template = await writeStubTemplate(dir);
-    const cwd = join(dir, 'work');
-    const { mkdir } = await import('node:fs/promises');
-    await mkdir(cwd);
     const code = await runAnalyze([sessionDir, '--open'], { ...deps(template), opener: async (t) => { opened.push(t); } });
     expect(code).toBe(0);
     expect(opened).toHaveLength(1);
     expect(opened[0]).toMatch(/analyze-session-aaa\.html$/);
+    // the default output path resolves against process.cwd(); verify it exists, then clean up
+    const defaultOut = resolve(opened[0]);
+    expect(await isFile(defaultOut)).toBe(true);
+    await rm(defaultOut, { force: true });
   });
 
   it('escapes </script> sequences in the embedded JSON', async () => {
@@ -2374,7 +2394,7 @@ describe('runAnalyze', () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run --project cli`
+Run: `npx vitest run cli`
 Expected: FAIL — `../src/analyze.js` does not exist.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -2581,7 +2601,7 @@ export async function runStat(argv: string[], deps: AnalyzeDeps = {}): Promise<n
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npx vitest run --project cli`
+Run: `npx vitest run cli`
 Expected: PASS, 6 tests.
 
 - [ ] **Step 5: Commit**
@@ -2659,7 +2679,9 @@ describe('runStat', () => {
 
   it('skips a corrupt session with a warning instead of failing', async () => {
     await makeSession(dir, '--proj-a--', 'good', sessionLines('good', 'alpha', 1700000000000));
-    await makeSession(dir, '--proj-a--', 'bad', [headerLine('bad', 'C:\\x'), 'not json']);
+    // a non-header first line makes fingerprinting throw (the lenient parser tolerates bad
+    // EVENT lines, so corrupt-ness here must come from the header)
+    await makeSession(dir, '--proj-a--', 'bad', ['this is not a session header']);
     const template = await writeStubTemplate(dir);
     const stderr: string[] = [];
     const code = await runStat(['--root', dir, '--out', join(dir, 's.html')], { template, stdout: () => {}, stderr: (t) => stderr.push(t) });
@@ -2684,7 +2706,7 @@ describe('runStat', () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run --project cli`
+Run: `npx vitest run cli`
 Expected: FAIL — stat tests fail against the stub.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -2758,7 +2780,7 @@ export async function runStat(argv: string[], deps: AnalyzeDeps = {}): Promise<n
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npx vitest run --project cli`
+Run: `npx vitest run cli`
 Expected: PASS, 4 new + 6 existing.
 
 - [ ] **Step 5: Commit**
@@ -2781,7 +2803,7 @@ git commit -m "feat(cli): stat command with cross-session heat aggregation"
 **Interfaces:**
 - Consumes: `buildTraceTree`/`TraceTree`/`TreeNodeKind`/`TraceSession`/`StatReport` from core (aliased to source in vite/vitest configs); runtime data injected by the CLI as `#trace-data` JSON of `{ kind: 'analyze', trace } | { kind: 'stat', stat }`.
 - Produces:
-  - `menuStateFor(kind: TreeNodeKind, layer: 'L0' | 'L1'): MenuItemState[]` — pure state machine (spec: 右键菜单按 L0/L1 分层点亮). L0 `detail` (查看详情) always enabled. L1 actions `select-opt | replace | delete | update | freeze` (选优/替换/删除/更新/冻结) appear ONLY for `skill` nodes; on layer L0 (the whole MVP) they are disabled with reason `'写操作 P1 起（MVP 只读）'`; non-skill nodes hide them. `MenuItemState = { id, label, enabled, reason?, layer }`.
+  - `menuStateFor(kind: TreeNodeKind, layer: 'L0' | 'L1'): MenuItemState[]` — pure state machine (spec: 右键菜单按 L0/L1 分层点亮). L0 `detail` (查看详情) always enabled. L1 actions `select-opt | replace | delete | freeze` (选优/替换/删除/冻结) appear ONLY for `skill` nodes; on layer L0 (the whole MVP) they are disabled with reason `'写操作 P1 起（MVP 只读）'`; non-skill nodes hide them. **「更新」is deliberately NOT in the menu**: spec §六 rules it out until its semantics are defined (where updates come from, whether local changes are overwritten). `MenuItemState = { id, label, enabled, reason?, layer }`.
   - `toCytoscapeElements(tree: TraceTree)` — nodes/edges element arrays for cytoscape.
   - `mountTree(container, tree, onSelect)` — cytoscape + elk layered layout, node colors by kind, `tap` → detail, `cxttap` → self-drawn absolute menu (no cxtmenu dependency, spec D5).
   - `renderHeat(container, stat: StatReport)` — heat table (skill, calls, sessions, first/last, per-day trend numbers).
@@ -2807,7 +2829,7 @@ describe('menuStateFor (L0/L1 layering)', () => {
 
   it('shows disabled L1 write actions only on skill nodes in the MVP layer', () => {
     const skillItems = menuStateFor('skill', 'L0');
-    expect(skillItems.map((i) => i.id)).toEqual(['detail', 'select-opt', 'replace', 'delete', 'update', 'freeze']);
+    expect(skillItems.map((i) => i.id)).toEqual(['detail', 'select-opt', 'replace', 'delete', 'freeze']);
     for (const item of skillItems.filter((i) => i.layer === 'L1')) {
       expect(item.enabled).toBe(false);
       expect(item.reason).toMatch(/P1/);
@@ -2851,7 +2873,7 @@ describe('toCytoscapeElements (render smoke)', () => {
   it('builds a valid headless graph', () => {
     const elements = toCytoscapeElements(buildTraceTree(trace));
     const cy = cytoscape({ headless: true, elements });
-    expect(cy.nodes().length).toBe(3); // session, turn, skill, tool = 4
+    expect(cy.nodes().length).toBe(4); // session, turn-0, skill, tool
     expect(cy.edges().length).toBe(3);
     cy.destroy();
   });
@@ -2867,11 +2889,11 @@ describe('toCytoscapeElements (render smoke)', () => {
 });
 ```
 
-Fix the node count expectation in Step 1 to the real value once run: session + turn-0 + skill + tool = **4 nodes**, edges: session→turn, turn→skill, skill→tool = **3 edges**. Correct the comment accordingly in the final file.
+Node count note (verified by this test): session + turn-0 + skill + tool = **4 nodes**; edges: session→turn, turn→skill, skill→tool = **3 edges**. The headless elk layout run was empirically verified to compute positions on Node 24 (elkjs falls back to main-thread execution without a Worker).
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run --project web`
+Run: `npx vitest run web`
 Expected: FAIL — `../src/menu.js` / `../src/tree-view.js` do not exist.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -2889,7 +2911,7 @@ Expected: FAIL — `../src/menu.js` / `../src/tree-view.js` do not exist.
     "typecheck": "tsc -p . --noEmit"
   },
   "dependencies": {
-    "@skillsupertracker/core": "workspace:*",
+    "@skillsupertracker/core": "0.1.0",
     "cytoscape": "^3.34",
     "cytoscape-elk": "*"
   },
@@ -2936,14 +2958,8 @@ export default defineConfig({
     },
   },
   test: {
-    name: 'web',
     environment: 'jsdom',
     include: ['test/**/*.test.ts'],
-    resolve: {
-      alias: {
-        '@skillsupertracker/core': fileURLToPath(new URL('../core/src/index.ts', import.meta.url)),
-      },
-    },
   },
 });
 ```
@@ -2997,7 +3013,7 @@ declare module 'cytoscape-elk' {
 ```ts
 import type { TreeNodeKind } from '@skillsupertracker/core';
 
-export type MenuActionId = 'detail' | 'select-opt' | 'replace' | 'delete' | 'update' | 'freeze';
+export type MenuActionId = 'detail' | 'select-opt' | 'replace' | 'delete' | 'freeze';
 export type CapabilityLayer = 'L0' | 'L1';
 
 export interface MenuItemState {
@@ -3008,11 +3024,11 @@ export interface MenuItemState {
   layer: CapabilityLayer;
 }
 
+// 「更新」is intentionally absent — spec §六: not in the menu until its semantics are defined.
 const L1_ACTIONS: Array<{ id: MenuActionId; label: string }> = [
   { id: 'select-opt', label: '选优' },
   { id: 'replace', label: '替换' },
   { id: 'delete', label: '删除' },
-  { id: 'update', label: '更新' },
   { id: 'freeze', label: '冻结' },
 ];
 
@@ -3264,7 +3280,7 @@ mountApp(root);
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npx vitest run --project web`
+Run: `npx vitest run web`
 Expected: PASS (menu tests + headless cytoscape tests). If `cytoscape` import fails in jsdom, keep those tests on the default node environment instead: move `tree-model.test.ts` to use `// @vitest-environment node` in a file-level comment (cytoscape headless needs no DOM).
 
 - [ ] **Step 5: Build the single-file output**
@@ -3399,7 +3415,7 @@ If the sandbox denies the push (`[sandbox: file access denied ...]` or network/E
 - **Spec coverage:** D1/D2 (independent tool, adapter-first contract) → Tasks 5–7 (`TraceAdapter` contract + DSH-only implementation, agent-neutral schema); D3 (TS/Node ≥22.15, zod-only runtime deps, vite-plugin-singlefile, cytoscape/elk, vitest) → Tasks 1, 3, 11; D4 (vendored `scanZstdFrames`, per-frame decode, torn-frame tolerance) → Task 2 + fixtures test; D5 (Cytoscape + elk, self-drawn cxttap menu, no cxtmenu) → Task 11; D6 (`analyze --open` + `.bat`, no serve) → Tasks 9, 12; D7 (stat in-memory JSON + static HTML) → Tasks 4, 10; D8 (golden fixtures + lenient parse + fingerprint + torn tolerance + JSON Schema contract) → Tasks 3, 6, 7, 8; §五 component tree (`packages/core|adapters|cli|web`, `fixtures/`, `zstd-frames.ts`, `types.ts`, `dsh/`, `claude/` deferred) → Tasks 1, 5, 11 (claude dir intentionally absent — P1); §六 (no write ops in MVP; menu renders L1 disabled) → Task 11 `menuStateFor`; §七 test strategy → every task's tests. Explicitly out of MVP and NOT in this plan: serve, Claude adapter, recommendations, forkprobe, node:sqlite, freeze/delete implementation, trend timeline visualization, LICENSE choice.
 - **Placeholder scan:** no TBD/TODO/placeholder steps; every step has runnable code or exact commands; the only "replace stub" note (Task 9 `stat.ts` stub → Task 10) ships the full replacement code inline.
 - **Type consistency:** `scanZstdFrames`/`decodeZstdLog` signatures identical across Tasks 2/7/8; `TraceAdapter`/`LogSource` (Task 5) match usage in Tasks 7/9/10; `TraceSession` shape (Task 3) matches `parseDshText` output (Task 7) and web `app.ts` consumption (Task 11); `buildTraceTree`/`aggregateStats` (Task 4) match web/cli usage; `runAnalyze`/`runStat`/`main` signatures match cli tests; `menuStateFor` (Task 11) matches its tests.
-- **Known deliberate deviations (documented):** chunk rows are skipped+counted, not expanded (they carry assistant deltas the trajectory does not model); torn tail is dropped, not partially recovered (committed-prefix semantics, same as DSH's `readRaw`); `stat` reads full logs rather than header-only (local volumes, MVP simplicity); timestamps in `perDay` are UTC.
+- **Known deliberate deviations (documented):** chunk rows are skipped+counted, not expanded (they carry assistant deltas the trajectory does not model); torn tail is dropped, not partially recovered (committed-prefix semantics, same as DSH's `readRaw`); `stat` reads full logs rather than header-only (local volumes, MVP simplicity); timestamps in `perDay` are UTC; **「更新」is excluded from the right-click menu per spec §六** (semantics undefined until P1+); workspace deps use plain version ranges because npm rejects the `workspace:` protocol (verified); vitest project filtering uses positional arguments because vitest 4 removed `--project` (verified); `fixtures/anonymize.ts` imports built `dist` output because Node type stripping does not remap `.js`→`.ts` specifiers (verified).
 
 ## Execution Handoff
 
