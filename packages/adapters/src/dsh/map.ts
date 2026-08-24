@@ -168,6 +168,7 @@ export function parseDshText(text: string, _fingerprint: DshFingerprint): TraceS
           else call.event.outcome = 'ok';
         }
         if (current === undefined) break;
+        const cur = current;
 
         if (!errored && callId !== undefined) {
           const pending = current.pendingSkills.get(callId);
@@ -179,9 +180,9 @@ export function parseDshText(text: string, _fingerprint: DshFingerprint): TraceS
         if (errored) break;
 
         const pushArtifact = (key: string, event: TraceEvent): void => {
-          if (current.seenArtifacts.has(key)) return;
-          current.seenArtifacts.add(key);
-          current.turn.events.push(event);
+          if (cur.seenArtifacts.has(key)) return;
+          cur.seenArtifacts.add(key);
+          cur.turn.events.push(event);
         };
         const attributedSkill = current.currentSkill;
 
