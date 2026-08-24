@@ -2909,6 +2909,7 @@ describe('menuStateFor (L0/L1 layering)', () => {
 `packages/web/test/tree-model.test.ts`:
 
 ```ts
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import cytoscape from 'cytoscape';
 import { buildTraceTree, type TraceSession } from '@skillsupertracker/core';
@@ -2942,7 +2943,17 @@ describe('toCytoscapeElements (render smoke)', () => {
     const elements = toCytoscapeElements(buildTraceTree(trace));
     const cy = cytoscape({ headless: true, elements });
     cy.layout({ name: 'elk', elk: { 'elk.algorithm': 'layered', 'elk.direction': 'DOWN' } }).run();
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    // elk.layout is asynchronous (GWT scheduler chunks via setTimeout) and run()
+    // returns the layout handle, not a promise — poll until positions are applied.
+    await new Promise<void>((resolve) => {
+      const startedAt = Date.now();
+      const poll = (): void => {
+        if (cy.nodes().some((n) => n.position().x !== 0 || n.position().y !== 0)) return resolve();
+        if (Date.now() - startedAt > 2000) return resolve();
+        setTimeout(poll, 10);
+      };
+      poll();
+    });
     expect(cy.nodes().some((n) => n.position().x !== 0 || n.position().y !== 0)).toBe(true);
     cy.destroy();
   }, 10000);
@@ -3133,7 +3144,7 @@ const KIND_COLORS: Record<string, string> = {
 export function toCytoscapeElements(tree: TraceTree): cytoscape.ElementDefinition[] {
   return [
     ...tree.nodes.map((node): cytoscape.ElementDefinition => ({
-      data: { id: node.id, label: node.label, kind: node.kind, ...node.data },
+      data: { ...node.data, id: node.id, label: node.label, kind: node.kind },
     })),
     ...tree.edges.map((edge): cytoscape.ElementDefinition => ({
       data: { id: edge.id, source: edge.source, target: edge.target },
@@ -3179,7 +3190,7 @@ export function mountTree(
     ],
   });
 
-  cy.layout({ name: 'elk', elk: { 'elk.algorithm': 'layered', 'elk.direction': 'DOWN' } }).run();
+  cy.layout({ name: 'elk', elk: { 'elk.algorithm': 'layered', 'elk.direction': 'DOWN' } } as unknown as cytoscape.LayoutOptions).run();
 
   cy.on('tap', 'node', (event) => {
     const id = event.target.id();
@@ -3290,13 +3301,13 @@ import { renderDetail } from './detail.js';
 import { renderHeat } from './heat-view.js';
 import { mountTree } from './tree-view.js';
 
-interface EmbeddedData {
+type EmbeddedData = {
   kind: 'analyze';
   trace: TraceSession;
 } | {
   kind: 'stat';
   stat: StatReport;
-}
+};
 
 function readEmbeddedData(): EmbeddedData {
   const el = document.getElementById('trace-data');
