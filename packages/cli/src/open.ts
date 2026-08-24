@@ -1,11 +1,12 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-
-const execFileAsync = promisify(execFile);
+import { spawn } from 'node:child_process';
 
 /** Open a local file with the platform default app. `stdio: 'ignore'` keeps the spawn sandbox-friendly. */
 export async function openPath(target: string): Promise<void> {
-  if (process.platform === 'win32') await execFileAsync('cmd', ['/c', 'start', '', target], { stdio: 'ignore' });
-  else if (process.platform === 'darwin') await execFileAsync('open', [target], { stdio: 'ignore' });
-  else await execFileAsync('xdg-open', [target], { stdio: 'ignore' });
+  const command = process.platform === 'win32' ? 'cmd' : process.platform === 'darwin' ? 'open' : 'xdg-open';
+  const args = process.platform === 'win32' ? ['/c', 'start', '', target] : [target];
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(command, args, { stdio: 'ignore' });
+    child.on('error', reject);
+    child.on('close', () => resolve());
+  });
 }
