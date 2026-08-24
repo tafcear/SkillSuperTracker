@@ -3,3 +3,5 @@ export { scanZstdFrames, ZSTD_MAGIC } from './zstd-frames.js';
 export type { ZstdFrame, ZstdScanResult } from './zstd-frames.js';
 export { decodeZstdLog } from './decompress.js';
 export type { DecodedZstdLog } from './decompress.js';
+export { traceEventSchema, traceTurnSchema, traceSessionSchema, statReportSchema, traceJsonSchema } from './trace-schema.js';
+export type { TraceEvent, TraceTurn, TraceSession, StatReport } from './trace-schema.js';
