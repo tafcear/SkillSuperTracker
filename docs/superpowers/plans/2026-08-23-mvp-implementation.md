@@ -644,7 +644,7 @@ describe('traceSessionSchema', () => {
   });
 
   it('matches the committed JSON Schema artifact (drift contract D8.5)', () => {
-    const committedPath = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'docs', 'schema', 'trace-v1.schema.json');
+    const committedPath = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'docs', 'schema', 'trace-v1.schema.json');
     const committed = JSON.parse(readFileSync(committedPath, 'utf8'));
     expect(traceJsonSchema()).toEqual(committed);
   });
