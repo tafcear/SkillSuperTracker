@@ -62,7 +62,7 @@ export function mountTree(
     ],
   });
 
-  cy.layout({ name: 'elk', elk: { 'elk.algorithm': 'layered', 'elk.direction': 'DOWN' } }).run();
+  cy.layout({ name: 'elk', elk: { 'elk.algorithm': 'layered', 'elk.direction': 'DOWN' } } as unknown as cytoscape.LayoutOptions).run();
 
   cy.on('tap', 'node', (event) => {
     const id = event.target.id();
