@@ -78,6 +78,31 @@ describe('runAnalyze', () => {
     expect(html).not.toContain('</script><script>');
   });
 
+  it('falls back to the session-dir basename when the header has no id', async () => {
+    const idless = [
+      JSON.stringify({ type: 'session', version: 0, createdAt: 1700000000000, cwd: 'C:\\work', delegationDepth: 0, agentPreset: 'cordis' }),
+      ...SKILL_SESSION_LINES.slice(1),
+    ];
+    const sessionDir = await makeSession(dir, '--proj--', 'dir-no-id', idless);
+    const template = await writeStubTemplate(dir);
+    const code = await runAnalyze([sessionDir, '--open'], { ...deps(template), opener: async (t) => { opened.push(t); } });
+    expect(code).toBe(0);
+    expect(opened).toHaveLength(1);
+    expect(opened[0]).toMatch(/analyze-dir-no-id\.html$/);
+    const defaultOut = resolve(opened[0]);
+    expect(await isFile(defaultOut)).toBe(true);
+    await rm(defaultOut, { force: true });
+  });
+
+  it('creates the output directory when it does not exist', async () => {
+    const sessionDir = await makeSession(dir, '--proj--', 'session-aaa', SKILL_SESSION_LINES);
+    const template = await writeStubTemplate(dir);
+    const out = join(dir, 'new-subdir', 'out.html');
+    const code = await runAnalyze([sessionDir, '--out', out], deps(template));
+    expect(code).toBe(0);
+    expect(await isFile(out)).toBe(true);
+  });
+
   it('fails with exit 1 for an unknown target', async () => {
     const template = await writeStubTemplate(dir);
     const code = await runAnalyze(['no-such-session', '--root', dir, '--out', join(dir, 'x.html')], deps(template));

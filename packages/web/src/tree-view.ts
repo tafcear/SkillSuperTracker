@@ -1,6 +1,6 @@
 import cytoscape from 'cytoscape';
 import elk from 'cytoscape-elk';
-import type { TraceTree, TreeNode } from '@skillsupertracker/core';
+import type { TraceTree, TreeNode } from '@skillsupertracker/core/pure';
 import { menuStateFor } from './menu.js';
 
 cytoscape.use(elk);

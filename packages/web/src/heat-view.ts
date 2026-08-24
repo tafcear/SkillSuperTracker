@@ -1,4 +1,5 @@
-import type { StatReport } from '@skillsupertracker/core';
+import type { StatReport } from '@skillsupertracker/core/pure';
+import { escapeHtml } from './escape.js';
 
 export function renderHeat(container: HTMLElement, stat: StatReport): void {
   const rows = stat.skills.map((skill) => {
@@ -18,8 +19,4 @@ export function renderHeat(container: HTMLElement, stat: StatReport): void {
       <thead><tr><th>技能</th><th>调用次数</th><th>会话数</th><th>首次</th><th>最近</th><th>近 7 天每日调用</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
-}
-
-function escapeHtml(text: string): string {
-  return text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 }

@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -12,5 +12,6 @@ export async function renderTraceHtml(data: unknown, opts: { template?: string; 
   }
   const json = JSON.stringify(data).replaceAll('</', '<\\/');
   // function replacer: a string replacement value would interpret $&, $', $` … sequences in the JSON
+  await mkdir(dirname(opts.out), { recursive: true });
   await writeFile(opts.out, template.replace('__TRACE_DATA__', () => json), 'utf8');
 }

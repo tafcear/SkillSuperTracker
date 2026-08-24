@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import cytoscape from 'cytoscape';
-import { buildTraceTree, type TraceSession } from '@skillsupertracker/core';
+import { buildTraceTree, type TraceSession } from '@skillsupertracker/core/pure';
 import { toCytoscapeElements } from '../src/tree-view.js';
 
 const trace: TraceSession = {

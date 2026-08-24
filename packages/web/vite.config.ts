@@ -11,6 +11,7 @@ export default defineConfig({
   plugins: [viteSingleFile()],
   resolve: {
     alias: {
+      '@skillsupertracker/core/pure': fileURLToPath(new URL('../core/src/pure.ts', import.meta.url)),
       '@skillsupertracker/core': fileURLToPath(new URL('../core/src/index.ts', import.meta.url)),
     },
   },

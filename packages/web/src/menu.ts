@@ -1,4 +1,4 @@
-import type { TreeNodeKind } from '@skillsupertracker/core';
+import type { TreeNodeKind } from '@skillsupertracker/core/pure';
 
 export type MenuActionId = 'detail' | 'select-opt' | 'replace' | 'delete' | 'freeze';
 export type CapabilityLayer = 'L0' | 'L1';

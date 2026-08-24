@@ -53,7 +53,7 @@ export async function runStat(argv: string[], deps: AnalyzeDeps = {}): Promise<n
       (deps.stderr ?? console.error)(`warning: skipping ${source.path}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-  const stat = aggregateStats('dsh', traces);
+  const stat = aggregateStats(traces[0]?.agent ?? 'dsh', traces);
   const out = args.out ?? 'stat.html';
   (deps.stdout ?? console.log)(JSON.stringify(stat, null, 2));
   await renderTraceHtml({ kind: 'stat', stat }, { template: deps.template, out });

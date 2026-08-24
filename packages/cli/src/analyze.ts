@@ -1,5 +1,5 @@
 import { homedir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { stat } from 'node:fs/promises';
 import { dshAdapter } from '@skillsupertracker/adapters';
 import { openPath } from './open.js';
@@ -90,7 +90,7 @@ export async function runAnalyze(argv: string[], deps: AnalyzeDeps = {}): Promis
     return 1;
   }
   const trace = await dshAdapter.parse(artifact);
-  const out = args.out ?? `analyze-${slugFor(trace.session.id, basename(artifact))}.html`;
+  const out = args.out ?? `analyze-${slugFor(trace.session.id, basename(dirname(artifact)))}.html`;
   await renderTraceHtml({ kind: 'analyze', trace }, { template: deps.template, out });
   (deps.stdout ?? console.log)(`wrote ${out}`);
   if (args.open) await (deps.opener ?? openPath)(out);

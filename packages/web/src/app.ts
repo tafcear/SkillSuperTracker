@@ -1,4 +1,4 @@
-import { buildTraceTree, traceSessionSchema, statReportSchema, type StatReport, type TraceSession } from '@skillsupertracker/core';
+import { buildTraceTree, traceSessionSchema, statReportSchema, type StatReport, type TraceSession } from '@skillsupertracker/core/pure';
 import { renderDetail } from './detail.js';
 import { renderHeat } from './heat-view.js';
 import { mountTree } from './tree-view.js';

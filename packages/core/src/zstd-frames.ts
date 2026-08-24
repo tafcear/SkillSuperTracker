@@ -9,6 +9,8 @@
  * Locates complete Zstandard frames without decompressing their blocks.
  * Invalid complete structure rejects; EOF inside the final frame returns its
  * start (tornStart) for repair.
+ *
+ * Full MIT permission text: THIRD_PARTY_NOTICES.md at the repository root.
  */
 
 export const ZSTD_MAGIC = 4247762216;
