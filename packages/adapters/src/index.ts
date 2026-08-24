@@ -4,3 +4,5 @@ export { fingerprintDshLog, SessionFormatUnsupportedError } from './dsh/fingerpr
 export type { DshFingerprint } from './dsh/fingerprint.js';
 export { classifyRow, splitRows } from './dsh/jsonl.js';
 export type { RowCounts, RowKind } from './dsh/jsonl.js';
+export { dshAdapter } from './dsh/parse.js';
+export { parseDshText } from './dsh/map.js';
