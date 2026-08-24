@@ -2458,16 +2458,19 @@ Expected: FAIL — `../src/analyze.js` does not exist.
 `packages/cli/src/open.ts`:
 
 ```ts
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { spawn } from 'node:child_process';
 
-const execFileAsync = promisify(execFile);
-
-/** Open a local file with the platform default app. `stdio: 'ignore'` keeps the spawn sandbox-friendly. */
+/** Open a local file with the platform default app. `stdio: 'ignore'` keeps the spawn sandbox-friendly.
+ *  (Execution-time fix: the original execFile+promisify snippet is incompatible with @types/node v24 —
+ *  `stdio` is not on ExecFileOptions; spawn options include it and behavior is identical.) */
 export async function openPath(target: string): Promise<void> {
-  if (process.platform === 'win32') await execFileAsync('cmd', ['/c', 'start', '', target], { stdio: 'ignore' });
-  else if (process.platform === 'darwin') await execFileAsync('open', [target], { stdio: 'ignore' });
-  else await execFileAsync('xdg-open', [target], { stdio: 'ignore' });
+  const command = process.platform === 'win32' ? 'cmd' : process.platform === 'darwin' ? 'open' : 'xdg-open';
+  const args = process.platform === 'win32' ? ['/c', 'start', '', target] : [target];
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(command, args, { stdio: 'ignore' });
+    child.on('error', reject);
+    child.on('close', () => resolve());
+  });
 }
 ```
 
