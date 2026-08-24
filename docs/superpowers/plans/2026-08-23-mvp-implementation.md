@@ -2102,9 +2102,12 @@ const LEAK_TOKENS = ['BaiduSyncdisk', 'baidusyncdisk', 'tafce', 'C:\\Users', 'C:
 // NOTE: 'sourceRoot' is deliberately NOT whitelisted — it never appears in real
 // DSH stored events, and if it did, it would be an absolute path that must be redacted.
 const KEEP_STRING_KEYS = new Set([
-  'type', 'kind', 'role', 'status', 'reason', 'name', 'provider', 'model', 'origin',
+  'type', 'kind', 'role', 'status', 'name', 'provider', 'model', 'origin',
   'form', 'outcome', 'code', 'callId', 'toolCallId',
 ]);
+// NOTE: `reason` is intentionally NOT whitelisted (execution-time fix):
+// turn/end's `reason.kind` survives via the whitelisted `kind` key, while
+// approval/asked's free-text `reason` embeds message bodies + absolute paths.
 
 /**
  * Recursive redactor: keep numbers/booleans and whitelisted structural keys
