@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>skillsupertracker</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body { margin: 0; font-family: system-ui, "Segoe UI", sans-serif; }
+      #app { display: flex; flex-direction: column; height: 100vh; }
+      header.top { padding: 8px 14px; font-size: 14px; border-bottom: 1px solid #8884; }
+      main.split { flex: 1; display: flex; min-height: 0; }
+      #tree { flex: 1; min-width: 0; }
+      #detail { width: 320px; overflow: auto; border-left: 1px solid #8884; padding: 12px; font-size: 13px; }
+      #heat { flex: 1; overflow: auto; padding: 12px; }
+      table.heat { border-collapse: collapse; width: 100%; }
+      table.heat th, table.heat td { border: 1px solid #8886; padding: 6px 10px; text-align: left; }
+      .ctx-menu { position: absolute; z-index: 1000; background: Canvas; border: 1px solid #8888; border-radius: 6px; box-shadow: 0 4px 16px #0004; padding: 4px 0; min-width: 160px; font-size: 13px; }
+      .ctx-menu button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 7px 14px; cursor: pointer; color: inherit; font: inherit; }
+      .ctx-menu button:disabled { opacity: 0.45; cursor: not-allowed; }
+      .ctx-menu button:hover:not(:disabled) { background: #8882; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script id="trace-data" type="application/json">__TRACE_DATA__</script>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

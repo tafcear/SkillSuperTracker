@@ -1,0 +1,21 @@
+{
+  "name": "@skillsupertracker/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "test": "vitest run",
+    "typecheck": "tsc -p . --noEmit"
+  },
+  "dependencies": {
+    "@skillsupertracker/core": "0.1.0",
+    "cytoscape": "^3.34",
+    "cytoscape-elk": "*"
+  },
+  "devDependencies": {
+    "jsdom": "*",
+    "vite": "*",
+    "vite-plugin-singlefile": "*"
+  }
+}
