@@ -6,10 +6,36 @@
 
 ## 当前状态
 
-**设计阶段完成，待实施。** 三轮 Kimi 评审闭环（2 轮设计/选型 + 1 轮 spec 终审），全部裁定已合入设计文档。
+**MVP 实施中/已交付**（2026-08-23）：`analyze`/`stat` CLI + 自包含时序树/热度视图已可用；写操作/推荐/选优 P1 起。
 
 - 📄 设计文档（spec）：[`docs/superpowers/specs/2026-08-23-skill-trace-design.md`](docs/superpowers/specs/2026-08-23-skill-trace-design.md)
-- 下一步：writing-plans 出实施计划 → MVP（约 2 周）
+
+## 快速开始
+
+要求 Node >=22.15（zstd 内置）。首次使用：
+
+```bash
+npm install
+npm run build
+```
+
+分析一个会话（会话 id 或会话目录），生成自包含 HTML 并在浏览器打开：
+
+```bash
+node packages/cli/dist/cli.js analyze <session-id|dir> --open
+```
+
+或双击 `skillsupertracker.bat`。跨会话热度统计：
+
+```bash
+node packages/cli/dist/cli.js stat --open
+```
+
+运行测试：
+
+```bash
+npm test
+```
 
 ## 核心决策速览
 
@@ -23,6 +49,13 @@
 | 写操作（P1 起） | 软删除（quarantine 30 天）+ 冻结复用 zebbkira 管理器前言改写约定；dry-run + 备份 |
 
 完整需求分层、架构决策（D1–D8）、安全边界、测试策略、分期计划见 spec。
+
+## 已知限制（MVP）
+
+- `stat` 每次全量解析所有会话（spec D7 允许），会话上百个时明显变慢——P1 的 node:sqlite 增量索引解决
+- 时序树节点按类型着色（heat 在 stat 视图体现），按热度着色属后续打磨
+- 大会话（数百节点）的 elk 布局在主线程计算（单文件无 Worker），布局期间界面短暂卡顿
+- 仅在写操作上完全只读；技能目录管理（冻结/软删除等）P1 起分层交付
 
 ## License
 
