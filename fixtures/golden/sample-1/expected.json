@@ -1,0 +1,25 @@
+{
+  "agent": "dsh",
+  "schemaVersion": 1,
+  "turnCount": 1,
+  "skillLoads": [
+    {
+      "name": "using-superpowers"
+    },
+    {
+      "name": "project-memory"
+    },
+    {
+      "name": "agent-skill-usage-logging"
+    }
+  ],
+  "toolCallCount": 28,
+  "artifactCount": 0,
+  "stats": {
+    "skippedLines": 0,
+    "skippedChunkRows": 1935,
+    "unknownEventTypes": [
+      "kimi-tide/panel"
+    ]
+  }
+}

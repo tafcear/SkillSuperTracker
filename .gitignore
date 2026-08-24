@@ -2,3 +2,4 @@ node_modules/
 dist/
 packages/cli/templates/
 .npm-cache-tmp/
+fixtures/raw/
