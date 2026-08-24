@@ -1,0 +1,19 @@
+{
+  "name": "skillsupertracker",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": { "skillsupertracker": "dist/cli.js" },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist", "templates"],
+  "dependencies": {
+    "@skillsupertracker/adapters": "0.1.0",
+    "@skillsupertracker/core": "0.1.0"
+  },
+  "scripts": {
+    "build": "tsc -p . && node scripts/copy-template.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc -p . --noEmit",
+    "prepublishOnly": "npm run build"
+  }
+}
