@@ -1,6 +1,6 @@
 import cytoscape from 'cytoscape';
 import elk from 'cytoscape-elk';
-import type { TraceTree, TreeNode } from '@skillsupertracker/core/pure';
+import type { TraceTree, TreeNode, TreeNodeKind } from '@skillsupertracker/core/pure';
 import { menuStateFor } from './menu.js';
 
 cytoscape.use(elk);
@@ -13,10 +13,24 @@ const KIND_COLORS: Record<string, string> = {
   artifact: '#2c9e5a',
 };
 
+export function shortLabel(kind: TreeNodeKind, label: string): string {
+  if (kind === 'tool') {
+    const idx = label.lastIndexOf('__');
+    return idx === -1 ? label : label.slice(idx + 2);
+  }
+  if (kind === 'artifact') {
+    const slash = label.lastIndexOf('/');
+    const back = label.lastIndexOf('\\');
+    const idx = Math.max(slash, back);
+    return idx === -1 ? label : label.slice(idx + 1);
+  }
+  return label;
+}
+
 export function toCytoscapeElements(tree: TraceTree): cytoscape.ElementDefinition[] {
   return [
     ...tree.nodes.map((node): cytoscape.ElementDefinition => ({
-      data: { ...node.data, id: node.id, label: node.label, kind: node.kind },
+      data: { ...node.data, id: node.id, label: node.label, kind: node.kind, shortLabel: shortLabel(node.kind, node.label) },
     })),
     ...tree.edges.map((edge): cytoscape.ElementDefinition => ({
       data: { id: edge.id, source: edge.source, target: edge.target },
@@ -42,12 +56,12 @@ export function mountTree(
       {
         selector: 'node',
         style: {
-          label: 'data(label)',
+          label: 'data(shortLabel)',
           'text-valign': 'center',
           'text-halign': 'right',
-          'font-size': 11,
+          'font-size': 10,
           'text-wrap': 'ellipsis',
-          'text-max-width': '140px',
+          'text-max-width': '110px',
           width: 12,
           height: 12,
           'background-color': (el) => KIND_COLORS[String(el.data('kind'))] ?? '#999',
@@ -58,11 +72,12 @@ export function mountTree(
         style: { shape: 'round-rectangle', width: 12, height: 22 },
       },
       { selector: 'node[kind = "skill"]', style: { width: 14, height: 14, 'font-weight': 'bold' } },
+      { selector: 'node:selected', style: { 'border-width': 3, 'border-color': '#f59e0b', 'border-opacity': 1 } },
       { selector: 'edge', style: { width: 1, 'line-color': '#8888', 'target-arrow-shape': 'triangle', 'target-arrow-color': '#8888', 'curve-style': 'bezier', 'arrow-scale': 0.6 } },
     ],
   });
 
-  cy.layout({ name: 'elk', elk: { 'elk.algorithm': 'layered', 'elk.direction': 'DOWN' } } as unknown as cytoscape.LayoutOptions).run();
+  cy.layout({ name: 'elk', elk: { 'elk.algorithm': 'layered', 'elk.direction': 'DOWN', 'elk.spacing.nodeNodeBetweenLayers': 90 } } as unknown as cytoscape.LayoutOptions).run();
 
   cy.on('tap', 'node', (event) => {
     const id = event.target.id();
