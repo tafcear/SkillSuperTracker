@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { cardLines, shortLabel, TREE_STYLE } from '../src/tree-view.js';
+import { KIND_ICONS } from '../src/icons.js';
 import type { TreeNode } from '@skillsupertracker/core';
 
 describe('shortLabel', () => {
@@ -35,56 +36,74 @@ describe('shortLabel', () => {
 const mk = (kind, label, data = {}, time?) =>
   ({ id: 'x', kind, label, data, ...(time === undefined ? {} : { time }) }) satisfies TreeNode;
 
-describe('cardLines (Coze card)', () => {
-  it('session card shows agent as subtitle', () => {
-    const n = mk('session', 'Plugin ecosystem doc...', { agent: 'dsh' });
-    expect(cardLines(n)).toEqual({ title: 'Plugin ecosystem doc...', subtitle: 'dsh' });
+describe('cardLines (Coze light card)', () => {
+  it('session card shows agent + model + tokens', () => {
+    const n = mk('session', 'Plugin ecosystem doc...', { agent: 'dsh', model: 'deepseek-v4-pro', tokenUsage: { input: 100, output: 50 } });
+    expect(cardLines(n)).toEqual({ title: 'Plugin ecosystem doc...', lines: ['dsh', 'deepseek-v4-pro', 'Tokens: 150'] });
   });
 
-  it('turn card shows HH:MM:SS time subtitle', () => {
+  it('turn card shows time line only when no duration', () => {
     const n = mk('turn', 'Turn 2', {}, 1700000000000);
     const r = cardLines(n);
     expect(r.title).toBe('Turn 2');
-    expect(r.subtitle).toMatch(/^\d{2}:\d{2}:\d{2}$/);
+    expect(r.lines).toHaveLength(1);
+    expect(r.lines[0]).toMatch(/^\d{2}:\d{2}:\d{2}$/);
   });
 
-  it('skill card subtitle is 技能', () => {
-    const n = mk('skill', 'writing-plans', { name: 'writing-plans' });
-    expect(cardLines(n)).toEqual({ title: 'writing-plans', subtitle: '技能' });
+  it('skill card shows 技能 + source basename', () => {
+    const n = mk('skill', 'writing-plans', { name: 'writing-plans', sourceRoot: 'C:\\skills\\writing-plans' });
+    expect(cardLines(n)).toEqual({ title: 'writing-plans', lines: ['技能', 'writing-plans'] });
   });
 
-  it('tool card shortens label and shows outcome', () => {
-    const n = mk('tool', 'mcp__obsidian-zhuku__obsidian_search_notes', { name: 'mcp__obsidian-zhuku__obsidian_search_notes', outcome: 'ok' });
-    expect(cardLines(n)).toEqual({ title: 'obsidian_search_notes', subtitle: 'ok' });
+  it('tool outcome ok shows result + target basename', () => {
+    const n = mk('tool', 'mcp__obsidian-zhuku__obsidian_search_notes', { name: 'mcp__obsidian-zhuku__obsidian_search_notes', outcome: 'ok', target: 'C:\\tools\\search.py' });
+    expect(cardLines(n)).toEqual({ title: 'obsidian_search_notes', lines: ['结果: ✓ ok', 'search.py'] });
   });
 
   it('tool without outcome falls back to 工具', () => {
     const n = mk('tool', 'pwsh', { name: 'pwsh' });
-    expect(cardLines(n)).toEqual({ title: 'pwsh', subtitle: '工具' });
+    expect(cardLines(n)).toEqual({ title: 'pwsh', lines: ['工具'] });
   });
 
-  it('artifact card uses basename + 产物', () => {
+  it('artifact file shows 产物 only', () => {
     const n = mk('artifact', 'C:\\work\\docs\\plan.md', { kind: 'file', path: 'C:\\work\\docs\\plan.md' });
-    expect(cardLines(n)).toEqual({ title: 'plan.md', subtitle: '产物' });
+    expect(cardLines(n)).toEqual({ title: 'plan.md', lines: ['产物'] });
+  });
+
+  it('artifact commit shows message line', () => {
+    const n = mk('artifact', 'commit', { kind: 'commit', message: 'feat: x' });
+    expect(cardLines(n)).toEqual({ title: 'commit', lines: ['产物', 'feat: x'] });
   });
 });
 
-describe('TREE_STYLE (Coze cards)', () => {
-  it('base node is a label-sized card', () => {
+describe('TREE_STYLE (Coze light cards)', () => {
+  it('base node is a white label-sized card', () => {
     const s = TREE_STYLE.find((r) => r.selector === 'node')?.style;
     expect(s?.shape).toBe('round-rectangle');
     expect(s?.width).toBe('label');
     expect(s?.['text-wrap']).toBe('wrap');
+    expect(s?.['background-color']).toBe('#FFFFFF');
   });
 
-  it('selected card glows amber', () => {
+  it('selected card glows indigo', () => {
     const s = TREE_STYLE.find((r) => r.selector === 'node:selected')?.style;
-    expect(s?.['border-color']).toBe('#f59e0b');
-    expect(s?.['shadow-color']).toBe('#f59e0b');
+    expect(s?.['border-color']).toBe('#6366F1');
+    expect(s?.['shadow-color']).toBe('#6366F1');
   });
 
-  it('edges are smooth bezier', () => {
+  it('edges are indigo bezier', () => {
     const s = TREE_STYLE.find((r) => r.selector === 'edge')?.style;
     expect(s?.['curve-style']).toBe('bezier');
+    expect(s?.['line-color']).toBe('#6366F1');
+  });
+});
+
+describe('KIND_ICONS', () => {
+  it('has all 5 kind data-URI icons', () => {
+    const keys = Object.keys(KIND_ICONS).sort();
+    expect(keys).toEqual(['artifact', 'session', 'skill', 'tool', 'turn']);
+    for (const k of keys) {
+      expect(KIND_ICONS[k]).toMatch(/^data:image\/svg\+xml,/);
+    }
   });
 });

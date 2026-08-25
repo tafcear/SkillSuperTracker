@@ -5,20 +5,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>skillsupertracker</title>
     <style>
-      :root { color-scheme: light dark; }
-      body { margin: 0; font-family: system-ui, "Segoe UI", sans-serif; }
+      :root { color-scheme: light; }
+      body { margin: 0; font-family: system-ui, "Segoe UI", sans-serif; background: #F5F5F7; color: #1F2329; }
       #app { display: flex; flex-direction: column; height: 100vh; }
-      header.top { padding: 8px 14px; font-size: 14px; border-bottom: 1px solid #8884; }
+      header.top { padding: 8px 14px; font-size: 14px; background: #FFFFFF; border-bottom: 1px solid #E2E2E6; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .top-title { font-weight: 600; }
       main.split { flex: 1; display: flex; min-height: 0; }
-      #tree { flex: 1; min-width: 0; background-color: #0d0f13; background-image: radial-gradient(circle, #232733 1px, transparent 1px); background-size: 24px 24px; }
-      #detail { width: 320px; overflow: auto; border-left: 1px solid #8884; padding: 12px; font-size: 13px; }
+      #tree { flex: 1; min-width: 0; background-color: #F5F5F7; background-image: radial-gradient(circle, #E2E2E6 1px, transparent 1px); background-size: 24px 24px; }
+      #detail { width: 320px; overflow: auto; border-left: 1px solid #E2E2E6; padding: 12px; font-size: 13px; background: #FFFFFF; color: #1F2329; }
       #heat { flex: 1; overflow: auto; padding: 12px; }
-      table.heat { border-collapse: collapse; width: 100%; }
-      table.heat th, table.heat td { border: 1px solid #8886; padding: 6px 10px; text-align: left; }
-      .ctx-menu { position: absolute; z-index: 1000; background: Canvas; border: 1px solid #8888; border-radius: 6px; box-shadow: 0 4px 16px #0004; padding: 4px 0; min-width: 160px; font-size: 13px; }
+      table.heat { border-collapse: collapse; width: 100%; background: #FFFFFF; }
+      table.heat th, table.heat td { border: 1px solid #E2E2E6; padding: 6px 10px; text-align: left; }
+      table.heat th { background: #F9FAFB; }
+      .ctx-menu { position: absolute; z-index: 1000; background: #FFFFFF; border: 1px solid #E2E2E6; border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.10); padding: 4px 0; min-width: 160px; font-size: 13px; }
       .ctx-menu button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 7px 14px; cursor: pointer; color: inherit; font: inherit; }
       .ctx-menu button:disabled { opacity: 0.45; cursor: not-allowed; }
-      .ctx-menu button:hover:not(:disabled) { background: #8882; }
+      .ctx-menu button:hover:not(:disabled) { background: #F3F4F6; }
+      .pill { background: #F3F4F6; border-radius: 6px; padding: 2px 8px; margin: 2px 4px 2px 0; display: inline-block; font-size: 12px; color: #4B5563; }
+      .status-pill { background: #DCFCE7; color: #16A34A; border-radius: 999px; padding: 3px 10px; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
+      .kind-icon { width: 34px; height: 34px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 16px; flex: none; }
+      .detail-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+      .detail-heading h2 { margin: 0; font-size: 16px; color: #1F2329; }
+      .detail-subtitle { color: #6B7280; font-size: 12px; }
+      .detail-section { margin-bottom: 16px; }
+      .detail-section h3 { margin: 0 0 6px; font-size: 12px; color: #9CA3AF; text-transform: uppercase; letter-spacing: .03em; }
+      .detail-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #F3F4F6; font-size: 13px; }
+      .detail-key { color: #6B7280; }
+      .detail-val { color: #1F2329; }
+      .detail-data { display: flex; flex-wrap: wrap; }
     </style>
   </head>
   <body>
