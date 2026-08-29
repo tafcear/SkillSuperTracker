@@ -19,16 +19,15 @@ npm install
 npm run build
 ```
 
-分析一个会话（会话 id 或会话目录），生成自包含 HTML 并在浏览器打开：
+**日常使用（推荐）**：双击 `skillsupertracker.bat`——自动展示默认会话根（`~/.dsh/sessions`）下**最近 10 个会话**，顶栏下拉即可切换会话/agent。
+
+命令行等价形式（不带会话参数 = 最近 10 个）：
 
 ```bash
-node packages/cli/dist/cli.js analyze <session-id|dir> --open
-```
-
-或双击 `skillsupertracker.bat`。跨会话热度统计：
-
-```bash
-node packages/cli/dist/cli.js stat --open
+node packages/cli/dist/cli.js analyze --open            # 最近 10 个会话
+node packages/cli/dist/cli.js analyze --recent 5 --open # 最近 5 个
+node packages/cli/dist/cli.js analyze <session-id|dir> --open  # 指定会话（可多个）
+node packages/cli/dist/cli.js stat --open               # 跨会话热度统计
 ```
 
 运行测试：

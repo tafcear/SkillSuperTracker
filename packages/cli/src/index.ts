@@ -11,7 +11,7 @@ export interface CliDeps {
 export const USAGE = [
   'skillsupertracker — AI agent skill-trace visualizer',
   'usage:',
-  '  skillsupertracker analyze <session-id|dir> [--root <dir>] [--out <file>] [--open]',
+  '  skillsupertracker analyze [session-id|dir]... [--recent <n>] [--open]   （不带参数 = 最近 10 个会话）',
   '  skillsupertracker stat [--root <dir>] [--out <file>] [--open]',
   '  skillsupertracker --help',
 ].join('\n');

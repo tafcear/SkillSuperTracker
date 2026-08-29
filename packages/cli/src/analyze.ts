@@ -17,13 +17,15 @@ export interface AnalyzeDeps {
 }
 
 export const ANALYZE_USAGE = [
-  'usage: skillsupertracker analyze <session-id|dir>... [--agent <id>] [--root <dir>] [--recent <n>] [--out <file>] [--open]',
+  'usage: skillsupertracker analyze [session-id|dir]... [--agent <id>] [--root <dir>] [--recent <n>] [--out <file>] [--open]',
+  '  （不带会话参数 = 展示默认根下最近 10 个会话，双击 skillsupertracker.bat 即是此效果）',
   '  <session-id|dir>  one or more DSH session ids (searched under --root) or paths to session dirs / artifact files',
   '  --agent <id>      adapter to parse with (available: dsh)',
   '  --root <dir>      sessions root (default ~/.dsh/sessions)',
   '  --recent <n>      embed the n most recent sessions under --root instead of naming ids (default 10)',
   '  --out <file>      output HTML path (default analyze-<id>.html / analyze-multi.html)',
   '  --open            open the output in the default browser after writing',
+  '  --help, -h        show this help',
 ].join('\n');
 
 interface AnalyzeArgs {
@@ -33,13 +35,15 @@ interface AnalyzeArgs {
   out?: string;
   open: boolean;
   recent?: number;
+  help: boolean;
 }
 
 export function parseAnalyzeArgs(argv: string[]): AnalyzeArgs | undefined {
-  const args: AnalyzeArgs = { targets: [], open: false };
+  const args: AnalyzeArgs = { targets: [], open: false, help: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--open') args.open = true;
+    else if (a === '--help' || a === '-h') args.help = true;
     else if (a === '--agent') {
       const v = argv[++i];
       if (v === undefined) return undefined;
@@ -60,7 +64,8 @@ export function parseAnalyzeArgs(argv: string[]): AnalyzeArgs | undefined {
     } else if (a.startsWith('-')) return undefined;
     else args.targets.push(a);
   }
-  return args.targets.length === 0 && args.recent === undefined ? undefined : args;
+  // 空参数也照常返回：runAnalyze 会默认走「最近 10 个会话」的日常路径
+  return args;
 }
 
 async function isFile(p: string): Promise<boolean> {
@@ -120,15 +125,21 @@ export async function runAnalyze(argv: string[], deps: AnalyzeDeps = {}): Promis
     return 2;
   }
   const errors = deps.stderr ?? console.error;
+  if (args.help) {
+    (deps.stdout ?? console.log)(ANALYZE_USAGE);
+    return 0;
+  }
   const agentId = (args.agent ?? 'dsh') as AdapterId;
   if (!(agentId in ADAPTERS)) {
     errors(`unknown agent "${args.agent}"; available: ${Object.keys(ADAPTERS).join(', ')}`);
     return 2;
   }
   const adapter = ADAPTERS[agentId];
+  // 不点名会话时，默认展示默认根下最近的 10 个会话（双击启动器/裸 analyze 的日常路径）
+  const recent = args.recent ?? (args.targets.length === 0 ? 10 : undefined);
   const artifacts: string[] = [];
-  if (args.recent !== undefined) {
-    artifacts.push(...(await recentTargets(args.recent, args.root)));
+  if (recent !== undefined) {
+    artifacts.push(...(await recentTargets(recent, args.root)));
     if (artifacts.length === 0) {
       errors(`no DSH sessions found under root`);
       return 1;

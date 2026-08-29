@@ -159,6 +159,25 @@ describe('runAnalyze', () => {
   it('rejects unknown flags with exit 2', async () => {
     const template = await writeStubTemplate(dir);
     expect(await runAnalyze(['--bogus'], deps(template))).toBe(2);
-    expect(await runAnalyze([], deps(template))).toBe(2);
+  });
+
+  it('defaults to the most recent sessions when no target is given', async () => {
+    await makeSession(dir, '--proj--', 'session-aaa', SKILL_SESSION_LINES);
+    const bbbLines = [headerLine('session-bbb', 'C:\\work'), ...SKILL_SESSION_LINES.slice(1)];
+    await makeSession(dir, '--proj--', 'session-bbb', bbbLines);
+    const template = await writeStubTemplate(dir);
+    const out = join(dir, 'default-recent.html');
+    const code = await runAnalyze(['--root', dir, '--out', out], deps(template));
+    expect(code).toBe(0);
+    const html = await readFile(out, 'utf8');
+    expect(html).toContain('session-aaa');
+    expect(html).toContain('session-bbb');
+  });
+
+  it('prints help with exit 0 on --help', async () => {
+    const outs: string[] = [];
+    const code = await runAnalyze(['--help'], { ...deps(await writeStubTemplate(dir)), stdout: (t) => outs.push(t) });
+    expect(code).toBe(0);
+    expect(outs.join('\n')).toContain('usage: skillsupertracker analyze');
   });
 });
