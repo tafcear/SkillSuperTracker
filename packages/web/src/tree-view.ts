@@ -203,11 +203,11 @@ export function chainElements(tree: TraceTree, expanded: ReadonlySet<string>): c
 export function turnEventElements(
   tree: TraceTree,
   turnId: string,
-  kindFilter?: 'skill' | 'tool' | 'artifact',
+  kindFilter?: ReadonlySet<string>,
 ): cytoscape.ElementDefinition[] {
   const prefix = `${turnId}-event-`;
   const ids = new Set(tree.nodes.filter((n) => n.id.startsWith(prefix)).map((n) => n.id));
-  const nodes = tree.nodes.filter((n) => ids.has(n.id) && (kindFilter === undefined || n.kind === kindFilter));
+  const nodes = tree.nodes.filter((n) => ids.has(n.id) && (kindFilter === undefined || kindFilter.has(n.kind)));
   const visible = new Set<string>([turnId, ...nodes.map((n) => n.id)]);
   const edges = tree.edges
     .filter((e) => visible.has(e.source) && visible.has(e.target))
@@ -387,37 +387,57 @@ export function mountTree(
     l.run();
   };
 
-  let eventFilter: 'all' | 'skill' | 'tool' | 'artifact' = 'all';
+  const EVENT_KINDS = ['skill', 'tool', 'artifact'] as const;
+  const activeKinds = new Set<string>(EVENT_KINDS);
   const applyFilter = (): void => {
+    const filter = activeKinds.size === EVENT_KINDS.length ? undefined : activeKinds;
     for (const turnId of Array.from(expanded)) {
       const evNodes = cy.nodes(`[id ^= "${turnId}-event-"]`);
       evNodes.connectedEdges().remove();
       evNodes.remove();
-      cy.add(turnEventElements(tree, turnId, eventFilter === 'all' ? undefined : eventFilter));
+      cy.add(turnEventElements(tree, turnId, filter));
     }
     relayoutAround(Array.from(expanded)[0] ?? 'session');
   };
 
   const bar = document.createElement('div');
   bar.className = 'filter-bar';
-  const filterButton = (value: typeof eventFilter, text: string): HTMLButtonElement => {
+  const syncChipStates = (): void => {
+    bar.querySelectorAll('button').forEach((x) => {
+      const f = x.dataset.filter;
+      x.classList.toggle('active', f === 'all' ? activeKinds.size === EVENT_KINDS.length : activeKinds.has(f ?? ''));
+    });
+  };
+  const kindButton = (kind: string, text: string): HTMLButtonElement => {
     const b = document.createElement('button');
     b.textContent = text;
-    b.dataset.filter = value;
-    if (value === eventFilter) b.classList.add('active');
+    b.dataset.filter = kind;
+    b.classList.add('active');
     b.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (eventFilter === value) return;
-      eventFilter = value;
-      bar.querySelectorAll('button').forEach((x) => x.classList.toggle('active', x.dataset.filter === value));
+      if (activeKinds.has(kind) && activeKinds.size === 1) return; // 至少保留一类，避免全空
+      if (activeKinds.has(kind)) activeKinds.delete(kind);
+      else activeKinds.add(kind);
+      syncChipStates();
       applyFilter();
     });
     return b;
   };
-  bar.appendChild(filterButton('all', '全部'));
-  bar.appendChild(filterButton('skill', '⚡ 技能'));
-  bar.appendChild(filterButton('tool', '🔧 工具'));
-  bar.appendChild(filterButton('artifact', '📦 产物'));
+  const allButton = document.createElement('button');
+  allButton.textContent = '全部';
+  allButton.dataset.filter = 'all';
+  allButton.classList.add('active');
+  allButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (activeKinds.size === EVENT_KINDS.length) return;
+    EVENT_KINDS.forEach((k) => activeKinds.add(k));
+    syncChipStates();
+    applyFilter();
+  });
+  bar.appendChild(allButton);
+  bar.appendChild(kindButton('skill', '⚡ 技能'));
+  bar.appendChild(kindButton('tool', '🔧 工具'));
+  bar.appendChild(kindButton('artifact', '📦 产物'));
   container.appendChild(bar);
 
   const toggleTurn = (turnId: string): void => {
@@ -428,7 +448,8 @@ export function mountTree(
       expanded.delete(turnId);
       clearFocus();
     } else {
-      const added = turnEventElements(tree, turnId, eventFilter === 'all' ? undefined : eventFilter);
+      const filter = activeKinds.size === EVENT_KINDS.length ? undefined : activeKinds;
+      const added = turnEventElements(tree, turnId, filter);
       cy.add(added);
       // 新节点默认落在 (0,0)，会让动画从画布原点飞入——把它们先放到所属轮次卡片处，从卡片向外展开
       const spawn = { ...cy.getElementById(turnId).position() };

@@ -78,7 +78,7 @@ describe('toCytoscapeElements (render smoke)', () => {
 
   it('kind filter keeps only matching events and their edges', () => {
     const tree = buildTraceTree(trace);
-    const ev = turnEventElements(tree, 'turn-0', 'skill');
+    const ev = turnEventElements(tree, 'turn-0', new Set(['skill']));
     const ids = ev.map((el) => el.data?.id);
     expect(ids).toContain('turn-0-event-0'); // skill
     expect(ids).not.toContain('turn-0-event-1'); // tool filtered out
