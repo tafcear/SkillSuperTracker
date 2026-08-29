@@ -256,6 +256,8 @@ export const TREE_STYLE: cytoscape.StylesheetStyle[] = [
       color: '#1E293B',
       'border-width': 2,
       'border-color': (el: cytoscape.NodeSingular) => KIND_COLORS[String(el.data('kind')) as TreeNodeKind] ?? '#94A3B8',
+      'transition-property': 'opacity',
+      'transition-duration': '150ms',
       label: 'data(label)',
     } as cytoscape.Css.Node,
   },
@@ -291,6 +293,8 @@ export const TREE_STYLE: cytoscape.StylesheetStyle[] = [
       'curve-style': 'taxi',
       'taxi-direction': 'auto',
       'taxi-turn': '18px',
+      'transition-property': 'opacity',
+      'transition-duration': '150ms',
     },
   },
   {
@@ -350,14 +354,35 @@ export function mountTree(
   });
   layout.run();
 
-  /** 展开/收起一个轮次后重排，并保持可读缩放、居中到被操作的轮次 */
+  /** 系统开了「减少动态效果」时不做过渡动画（archify 动效规则） */
+  const motionOk = typeof window.matchMedia === 'function' ? !window.matchMedia('(prefers-reduced-motion: reduce)').matches : false;
+  const EASE = 'ease-in-out';
+
+  /** 展开/收起一个轮次后重排：先算好目标布局，再让所有节点从原位滑过去，视口同步缓动 */
   const relayoutAround = (turnId: string): void => {
-    const l = cy.layout(layoutOpts);
+    const before = new Map(cy.nodes().map((n) => [n.id(), { x: n.position().x, y: n.position().y }]));
+    const l = cy.layout({ ...layoutOpts, animate: false });
     l.on('layoutstop', () => {
       alignChainToBottom(cy, tree);
-      if (cy.zoom() < 0.5) cy.zoom(0.5);
+      const targetZoom = Math.max(cy.zoom(), 0.5);
       const anchor = cy.getElementById(turnId);
-      if (anchor.nonempty()) cy.center(anchor);
+      const dur = motionOk ? 300 : 0;
+      const finals = new Map(cy.nodes().map((n) => [n.id(), { x: n.position().x, y: n.position().y }]));
+      if (dur === 0) {
+        if (anchor.nonempty()) cy.center(anchor);
+        return;
+      }
+      cy.nodes().forEach((n) => {
+        const from = before.get(n.id());
+        const to = finals.get(n.id());
+        if (from === undefined || to === undefined) return; // 新展开的节点直接出现在目标位
+        n.position(from);
+        n.animate({ position: to }, { duration: dur, easing: EASE });
+      });
+      if (anchor.nonempty()) {
+        cy.stop();
+        cy.animate({ center: { els: anchor }, zoom: targetZoom }, { duration: dur, easing: EASE });
+      }
     });
     l.run();
   };
@@ -403,7 +428,11 @@ export function mountTree(
       expanded.delete(turnId);
       clearFocus();
     } else {
-      cy.add(turnEventElements(tree, turnId));
+      const added = turnEventElements(tree, turnId, eventFilter === 'all' ? undefined : eventFilter);
+      cy.add(added);
+      // 新节点默认落在 (0,0)，会让动画从画布原点飞入——把它们先放到所属轮次卡片处，从卡片向外展开
+      const spawn = { ...cy.getElementById(turnId).position() };
+      cy.nodes(`[id ^= "${turnId}-event-"]`).forEach((n) => n.position(spawn));
       expanded.add(turnId);
       clearFocus();
     }
@@ -428,7 +457,17 @@ export function mountTree(
   };
   controls.appendChild(button('＋', '放大', () => cy.zoom(Math.min(cy.zoom() * 1.25, cy.maxZoom()))));
   controls.appendChild(button('－', '缩小', () => cy.zoom(Math.max(cy.zoom() / 1.25, cy.minZoom()))));
-  controls.appendChild(button('⛶', '适配全图', () => settleInitialView(cy)));
+  controls.appendChild(button('⛶', '适配全图', () => {
+    if (!motionOk) {
+      settleInitialView(cy);
+      return;
+    }
+    cy.stop();
+    cy.animate(
+      { fit: { els: cy.elements(), padding: 48 } },
+      { duration: 300, easing: EASE },
+    );
+  }));
   container.appendChild(controls);
 
   const focusOn = (id: string): void => {
