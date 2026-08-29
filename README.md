@@ -59,4 +59,4 @@ npm test
 
 ## License
 
-**待定**（讨论中）。定案前本仓库不设 LICENSE 文件；未经许可请勿复制使用。
+[MIT](LICENSE) © 2026 tafcear。第三方依赖声明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)（内含 vendored 自 DSH 的 MIT 代码）。
