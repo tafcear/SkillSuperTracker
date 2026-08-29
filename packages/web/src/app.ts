@@ -2,7 +2,7 @@ import { buildTraceTree, traceSessionSchema, statReportSchema, type StatReport, 
 import { renderDetail } from './detail.js';
 import { escapeHtml } from './escape.js';
 import { renderHeat } from './heat-view.js';
-import { mountTree, KIND_COLORS } from './tree-view.js';
+import { mountTree, KIND_COLORS, KIND_FILLS } from './tree-view.js';
 
 type EmbeddedData = {
   kind: 'analyze';
@@ -54,9 +54,13 @@ const LEGEND_ITEMS: Array<[string, string]> = [
 
 function legendMarkup(): string {
   const items = LEGEND_ITEMS
-    .map(([kind, label]) => `<span class="legend-item"><i class="legend-dot" style="background:${KIND_COLORS[kind as keyof typeof KIND_COLORS]}"></i>${label}</span>`)
+    .map(([kind, label]) => {
+      const color = KIND_COLORS[kind as keyof typeof KIND_COLORS];
+      const fill = KIND_FILLS[kind as keyof typeof KIND_FILLS];
+      return `<span class="legend-item"><i class="legend-dot" style="border:2px solid ${color};background:${fill}"></i>${label}</span>`;
+    })
     .join('');
-  return `<div class="legend"><div class="legend-items">${items}</div><div class="legend-hint">单击轮次展开 / 收起事件 · 单击节点聚焦并看详情 · 点空白还原 · 右键菜单 · 滚轮缩放 / 拖拽</div></div>`;
+  return `<div class="legend"><div class="legend-title">图例 · Legend</div><div class="legend-items">${items}</div><div class="legend-hint">单击轮次展开 / 收起事件 · 单击节点聚焦并看详情 · 点空白还原 · 右键菜单 · 滚轮缩放 / 拖拽</div></div>`;
 }
 
 export function mountApp(root: HTMLElement): void {

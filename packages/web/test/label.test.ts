@@ -75,15 +75,17 @@ describe('cardLines (compact light card)', () => {
   });
 });
 
-describe('TREE_STYLE (Coze light cards)', () => {
-  it('base node is a white label-sized card with centered wrapped text', () => {
+describe('TREE_STYLE (archify light cards)', () => {
+  it('base node is a tinted, 2px-bordered mono card with centered wrapped text', () => {
     const s = TREE_STYLE.find((r) => r.selector === 'node')?.style;
     expect(s?.shape).toBe('round-rectangle');
     expect(s?.width).toBe('label');
     expect(s?.['text-wrap']).toBe('wrap');
     expect(s?.['text-halign']).toBe('center');
     expect(s?.['text-valign']).toBe('center');
-    expect(s?.['background-color']).toBe('#FFFFFF');
+    expect(typeof s?.['background-color']).toBe('function'); // per-kind tinted fill
+    expect(s?.['border-width']).toBe(2);
+    expect(String(s?.['font-family'])).toContain('JetBrains Mono');
   });
 
   it('session card falls back to a placeholder when label is empty', () => {
@@ -91,18 +93,18 @@ describe('TREE_STYLE (Coze light cards)', () => {
     expect(cardLines(n).title).toBe('(未命名会话)');
   });
 
-  it('selected card glows indigo', () => {
+  it('selected card glows archify cyan', () => {
     const s = TREE_STYLE.find((r) => r.selector === 'node:selected')?.style;
-    expect(s?.['border-color']).toBe('#6366F1');
-    expect(s?.['shadow-color']).toBe('#6366F1');
+    expect(s?.['border-color']).toBe('#0E7490');
+    expect(s?.['shadow-color']).toBe('#22D3EE');
   });
 
-  it('event edges are light gray, temporal chain edges are darker and thicker', () => {
+  it('event edges are orthogonal gray, temporal chain edges are green', () => {
     const edge = TREE_STYLE.find((r) => r.selector === 'edge')?.style;
-    expect(edge?.['curve-style']).toBe('bezier');
-    expect(edge?.['line-color']).toBe('#CBD5E1');
+    expect(edge?.['curve-style']).toBe('taxi');
+    expect(edge?.['line-color']).toBe('#94A3B8');
     const chain = TREE_STYLE.find((r) => r.selector === 'edge[chain]')?.style;
-    expect(chain?.['line-color']).toBe('#94A3B8');
+    expect(chain?.['line-color']).toBe('#059669');
     expect(chain?.width).toBeGreaterThan(edge?.width as number);
   });
 });

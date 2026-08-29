@@ -5,13 +5,25 @@ import { menuStateFor } from './menu.js';
 
 cytoscape.use(elk);
 
+/** archify 风语义色：颜色只表意不装饰（DESIGN.md Semantic Color Rule），取浅色主题描边档 */
 export const KIND_COLORS: Record<TreeNodeKind, string> = {
   session: '#64748B',
-  turn: '#94A3B8',
-  skill: '#3B82F6',
-  tool: '#8B5CF6',
-  artifact: '#16A34A',
+  turn: '#0891B2',
+  skill: '#059669',
+  tool: '#EA580C',
+  artifact: '#7C3AED',
 };
+
+/** 与描边同色系的浅底（约 50 号色阶） */
+export const KIND_FILLS: Record<TreeNodeKind, string> = {
+  session: '#F8FAFC',
+  turn: '#ECFEFF',
+  skill: '#ECFDF5',
+  tool: '#FFF7ED',
+  artifact: '#F5F3FF',
+};
+
+export const MONO_FONT = '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 
 export const KIND_EMOJI: Record<TreeNodeKind, string> = {
   session: '🗂',
@@ -232,36 +244,33 @@ export const TREE_STYLE: cytoscape.StylesheetStyle[] = [
       width: 'label',
       height: 'label',
       padding: '10px',
-      'background-color': '#FFFFFF',
+      'background-color': (el: cytoscape.NodeSingular) => KIND_FILLS[String(el.data('kind')) as TreeNodeKind] ?? '#F8FAFC',
       'text-halign': 'center',
       'text-valign': 'center',
       'text-wrap': 'wrap',
       'text-max-width': '150px',
       'line-height': 1.4,
-      'font-size': 11,
-      color: '#1F2329',
-      'border-width': 1,
-      'border-color': (el: cytoscape.NodeSingular) => KIND_COLORS[String(el.data('kind')) as TreeNodeKind] ?? '#999',
-      'shadow-blur': 6,
-      'shadow-color': '#0a0a0a',
-      'shadow-opacity': 0.08,
-      'shadow-offset-x': 0,
-      'shadow-offset-y': 2,
+      'font-family': MONO_FONT,
+      'font-size': 12,
+      'font-weight': 600,
+      color: '#1E293B',
+      'border-width': 2,
+      'border-color': (el: cytoscape.NodeSingular) => KIND_COLORS[String(el.data('kind')) as TreeNodeKind] ?? '#94A3B8',
       label: 'data(label)',
     } as cytoscape.Css.Node,
   },
   {
     selector: 'node[kind = "skill"]',
-    style: { 'font-weight': 'bold' },
+    style: { 'font-weight': 700 },
   },
   {
     selector: 'node:selected',
     style: {
-      'border-width': 2,
-      'border-color': '#6366F1',
-      'shadow-blur': 10,
-      'shadow-color': '#6366F1',
-      'shadow-opacity': 0.35,
+      'border-width': 3,
+      'border-color': '#0E7490',
+      'shadow-blur': 7,
+      'shadow-color': '#22D3EE',
+      'shadow-opacity': 0.55,
       'shadow-offset-x': 0,
       'shadow-offset-y': 0,
     } as cytoscape.Css.Node,
@@ -272,26 +281,24 @@ export const TREE_STYLE: cytoscape.StylesheetStyle[] = [
     style: { opacity: 0.12 },
   },
   {
+    // archify 主流程：proof green 直角航线
     selector: 'edge',
     style: {
-      width: 1.2,
-      'line-color': '#CBD5E1',
+      width: 1.5,
+      'line-color': '#94A3B8',
       'target-arrow-shape': 'triangle',
-      'target-arrow-color': '#CBD5E1',
-      'curve-style': 'bezier',
-      'control-point-distance': 56,
-      'control-point-weight': 0.5,
-      'arrow-scale': 0.65,
+      'target-arrow-color': '#94A3B8',
+      'curve-style': 'taxi',
+      'taxi-direction': 'auto',
+      'taxi-turn': '18px',
     },
   },
   {
-    // 主时序流（session→turn-0→turn-1→…）比事件边略深略粗，区分层级
     selector: 'edge[chain]',
     style: {
       width: 2,
-      'line-color': '#94A3B8',
-      'target-arrow-color': '#94A3B8',
-      'arrow-scale': 0.9,
+      'line-color': '#059669',
+      'target-arrow-color': '#059669',
     },
   },
 ];
