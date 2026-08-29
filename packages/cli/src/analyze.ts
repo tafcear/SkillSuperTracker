@@ -5,6 +5,10 @@ import { dshAdapter } from '@skillsupertracker/adapters';
 import { openPath } from './open.js';
 import { renderTraceHtml } from './render.js';
 
+/** 已接入的适配器注册表：新 agent 在此登记后即可 --agent 选择（adapter-first D2） */
+export const ADAPTERS = { dsh: dshAdapter } as const;
+export type AdapterId = keyof typeof ADAPTERS;
+
 export interface AnalyzeDeps {
   opener?: (target: string) => Promise<void>;
   template?: string;
@@ -13,8 +17,9 @@ export interface AnalyzeDeps {
 }
 
 export const ANALYZE_USAGE = [
-  'usage: skillsupertracker analyze <session-id|dir>... [--root <dir>] [--recent <n>] [--out <file>] [--open]',
+  'usage: skillsupertracker analyze <session-id|dir>... [--agent <id>] [--root <dir>] [--recent <n>] [--out <file>] [--open]',
   '  <session-id|dir>  one or more DSH session ids (searched under --root) or paths to session dirs / artifact files',
+  '  --agent <id>      adapter to parse with (available: dsh)',
   '  --root <dir>      sessions root (default ~/.dsh/sessions)',
   '  --recent <n>      embed the n most recent sessions under --root instead of naming ids (default 10)',
   '  --out <file>      output HTML path (default analyze-<id>.html / analyze-multi.html)',
@@ -23,6 +28,7 @@ export const ANALYZE_USAGE = [
 
 interface AnalyzeArgs {
   targets: string[];
+  agent?: string;
   root?: string;
   out?: string;
   open: boolean;
@@ -34,7 +40,11 @@ export function parseAnalyzeArgs(argv: string[]): AnalyzeArgs | undefined {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--open') args.open = true;
-    else if (a === '--root') {
+    else if (a === '--agent') {
+      const v = argv[++i];
+      if (v === undefined) return undefined;
+      args.agent = v;
+    } else if (a === '--root') {
       const v = argv[++i];
       if (v === undefined) return undefined;
       args.root = v;
@@ -110,6 +120,12 @@ export async function runAnalyze(argv: string[], deps: AnalyzeDeps = {}): Promis
     return 2;
   }
   const errors = deps.stderr ?? console.error;
+  const agentId = (args.agent ?? 'dsh') as AdapterId;
+  if (!(agentId in ADAPTERS)) {
+    errors(`unknown agent "${args.agent}"; available: ${Object.keys(ADAPTERS).join(', ')}`);
+    return 2;
+  }
+  const adapter = ADAPTERS[agentId];
   const artifacts: string[] = [];
   if (args.recent !== undefined) {
     artifacts.push(...(await recentTargets(args.recent, args.root)));
@@ -127,7 +143,7 @@ export async function runAnalyze(argv: string[], deps: AnalyzeDeps = {}): Promis
   const traces = [];
   for (const artifact of artifacts) {
     try {
-      traces.push(await dshAdapter.parse(artifact));
+      traces.push(await adapter.parse(artifact));
     } catch (err) {
       errors(`failed to parse ${basename(artifact)}: ${err instanceof Error ? err.message : String(err)}, skipping`);
     }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseEmbeddedData } from '../src/app.js';
+import { parseEmbeddedData, distinctAgents } from '../src/app.js';
 
 const trace = {
   schemaVersion: 1,
@@ -44,5 +44,12 @@ describe('parseEmbeddedData', () => {
 
   it('rejects unknown kinds', () => {
     expect(() => parseEmbeddedData({ kind: 'nope' })).toThrow(/unrecognized/);
+  });
+
+  it('distinctAgents lists unique agents in encounter order', () => {
+    const a = { ...trace, agent: 'dsh' };
+    const b = { ...trace, agent: 'claude-code' };
+    expect(distinctAgents([a, b, a])).toEqual(['dsh', 'claude-code']);
+    expect(distinctAgents([a])).toEqual(['dsh']);
   });
 });

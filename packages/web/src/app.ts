@@ -43,8 +43,13 @@ function sessionTitle(trace: TraceSession): string {
 }
 
 function sessionOptionLabel(trace: TraceSession): string {
-  const base = `${sessionTitle(trace)}（${trace.session.id ?? '无 ID'}）`;
+  const base = `[${trace.agent}] ${sessionTitle(trace)}（${trace.session.id ?? '无 ID'}）`;
   return base.length > 60 ? `${base.slice(0, 59)}…` : base;
+}
+
+/** 内嵌会话涉及的 agent 去重列表（驱动顶栏 agent 筛选） */
+export function distinctAgents(traces: TraceSession[]): string[] {
+  return [...new Set(traces.map((t) => t.agent))];
 }
 
 function statusPill(trace: TraceSession): string {
@@ -102,13 +107,17 @@ export function mountApp(root: HTMLElement): void {
   }
 
   const traces = data.traces;
+  const agents = distinctAgents(traces);
+  const agentSelectMarkup = agents.length > 1
+    ? `<select id="agent-select" class="session-select" title="按 agent 筛选"><option value="all">全部 agent</option>${agents.map((a) => `<option value="${escapeHtml(a)}">[${a}]</option>`).join('')}</select>`
+    : '';
   const switcher = traces.length > 1
     ? `<select id="session-select" class="session-select">${traces.map((t, i) => `<option value="${i}">${escapeHtml(sessionOptionLabel(t))}</option>`).join('')}</select>`
     : '';
   root.innerHTML = `
     <header class="top">
       <span class="top-title">skillsupertracker — 会话轨迹${traces.length > 1 ? `（共 ${traces.length} 个）` : ''}</span>
-      <span class="top-right">${switcher}<span id="status-pill" class="status-pill">${statusPill(traces[0])}</span>${themeButtonMarkup()}</span>
+      <span class="top-right">${agentSelectMarkup}${switcher}<span id="status-pill" class="status-pill">${statusPill(traces[0])}</span>${themeButtonMarkup()}</span>
     </header>
     <main class="split">
       <div id="tree">${legendMarkup(getTheme())}</div><aside id="detail"></aside>
@@ -133,6 +142,20 @@ export function mountApp(root: HTMLElement): void {
   select?.addEventListener('change', () => {
     const idx = Number(select.value);
     if (Number.isInteger(idx) && traces[idx] !== undefined) renderTree(traces[idx]);
+  });
+
+  // agent 筛选：重建会话下拉的可见项，并自动落到第一个匹配会话
+  let currentAgent = 'all';
+  const agentSelectEl = root.querySelector<HTMLSelectElement>('#agent-select');
+  agentSelectEl?.addEventListener('change', () => {
+    currentAgent = agentSelectEl.value;
+    if (select === null) return;
+    const visible = traces.map((t, i) => ({ t, i })).filter(({ t }) => currentAgent === 'all' || t.agent === currentAgent);
+    select.innerHTML = visible.map(({ t, i }) => `<option value="${i}">${escapeHtml(sessionOptionLabel(t))}</option>`).join('');
+    if (visible.length > 0) {
+      select.value = String(visible[0].i);
+      renderTree(traces[visible[0].i]);
+    }
   });
 
   const themeButton = root.querySelector<HTMLButtonElement>('#theme-toggle');

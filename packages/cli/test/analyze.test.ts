@@ -59,6 +59,25 @@ describe('runAnalyze', () => {
     expect(html).toContain('session-bbb');
   });
 
+  it('rejects an unknown --agent with the available list', async () => {
+    const sessionDir = await makeSession(dir, '--proj--', 'session-aaa', SKILL_SESSION_LINES);
+    const template = await writeStubTemplate(dir);
+    const errs: string[] = [];
+    const code = await runAnalyze([sessionDir, '--agent', 'claude-code', '--out', join(dir, 'x.html')], { ...deps(template), stderr: (t) => errs.push(t) });
+    expect(code).toBe(2);
+    expect(errs.join('\n')).toContain('unknown agent "claude-code"');
+    expect(errs.join('\n')).toContain('available: dsh');
+  });
+
+  it('accepts an explicit --agent dsh', async () => {
+    const sessionDir = await makeSession(dir, '--proj--', 'session-aaa', SKILL_SESSION_LINES);
+    const template = await writeStubTemplate(dir);
+    const out = join(dir, 'agent.html');
+    const code = await runAnalyze([sessionDir, '--agent', 'dsh', '--out', out], deps(template));
+    expect(code).toBe(0);
+    expect(await readFile(out, 'utf8')).toContain('session-aaa');
+  });
+
   it('embeds the n most recent sessions with --recent', async () => {
     await makeSession(dir, '--proj--', 'session-aaa', SKILL_SESSION_LINES);
     const bbbLines = [headerLine('session-bbb', 'C:\\work'), ...SKILL_SESSION_LINES.slice(1)];
