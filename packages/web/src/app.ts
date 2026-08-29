@@ -56,7 +56,7 @@ function legendMarkup(): string {
   const items = LEGEND_ITEMS
     .map(([kind, label]) => `<span class="legend-item"><i class="legend-dot" style="background:${KIND_COLORS[kind as keyof typeof KIND_COLORS]}"></i>${label}</span>`)
     .join('');
-  return `<div class="legend"><div class="legend-items">${items}</div><div class="legend-hint">单击节点查看详情 · 右键打开操作菜单 · 滚轮缩放 / 拖拽平移</div></div>`;
+  return `<div class="legend"><div class="legend-items">${items}</div><div class="legend-hint">单击节点聚焦并看详情 · 点空白还原 · 右键操作菜单 · 滚轮缩放 / 拖拽平移</div></div>`;
 }
 
 export function mountApp(root: HTMLElement): void {

@@ -64,26 +64,24 @@ export function cardLines(node: TreeNode): { title: string; lines: string[] } {
       return { title: node.label || '(未命名会话)', lines };
     }
     case 'turn': {
-      const lines: string[] = [];
-      if (node.time !== undefined) lines.push(formatTime(node.time));
+      const parts: string[] = [];
+      if (node.time !== undefined) parts.push(formatTime(node.time).slice(0, 5));
       const endedAt = node.data.endedAt;
       if (typeof endedAt === 'number' && node.time !== undefined) {
-        lines.push(`${((endedAt - node.time) / 1000).toFixed(1)}s`);
+        parts.push(`${((endedAt - node.time) / 1000).toFixed(1)}s`);
       }
-      return { title: node.label, lines };
+      return { title: node.label, lines: parts.length > 0 ? [parts.join(' · ')] : [] };
     }
-    case 'skill': {
-      const lines: string[] = ['技能'];
-      if (typeof node.data.sourceRoot === 'string') lines.push(basename(node.data.sourceRoot));
-      return { title: node.label, lines };
-    }
+    case 'skill':
+      return { title: node.label, lines: [] };
     case 'tool': {
-      const lines: string[] = [node.data.outcome === 'error' ? '结果: ✗ error' : node.data.outcome === 'ok' ? '结果: ✓ ok' : '工具'];
+      const glyph = node.data.outcome === 'error' ? ' ✗' : node.data.outcome === 'ok' ? ' ✓' : '';
+      const lines: string[] = [];
       if (typeof node.data.target === 'string') lines.push(basename(node.data.target));
-      return { title: shortLabel('tool', node.label), lines };
+      return { title: shortLabel('tool', node.label) + glyph, lines };
     }
     case 'artifact': {
-      const lines: string[] = ['产物'];
+      const lines: string[] = [];
       if (typeof node.data.message === 'string') lines.push(node.data.message);
       return { title: shortLabel('artifact', node.label), lines };
     }
@@ -148,12 +146,12 @@ export const TREE_STYLE: cytoscape.StylesheetStyle[] = [
       shape: 'round-rectangle',
       width: 'label',
       height: 'label',
-      padding: '12px',
+      padding: '10px',
       'background-color': '#FFFFFF',
       'text-halign': 'center',
       'text-valign': 'center',
       'text-wrap': 'wrap',
-      'text-max-width': '190px',
+      'text-max-width': '150px',
       'line-height': 1.4,
       'font-size': 11,
       color: '#1F2329',
@@ -182,6 +180,11 @@ export const TREE_STYLE: cytoscape.StylesheetStyle[] = [
       'shadow-offset-x': 0,
       'shadow-offset-y': 0,
     } as cytoscape.Css.Node,
+  },
+  {
+    // 选中聚焦：与选中节点无关的部分整体淡出，压低画面噪声
+    selector: '.dimmed',
+    style: { opacity: 0.12 },
   },
   {
     selector: 'edge',
@@ -243,8 +246,8 @@ export function mountTree(
     elk: {
       'elk.algorithm': 'layered',
       'elk.direction': 'RIGHT',
-      'elk.spacing.nodeNode': 50,
-      'elk.spacing.nodeNodeBetweenLayers': 120,
+      'elk.spacing.nodeNode': 24,
+      'elk.spacing.nodeNodeBetweenLayers': 56,
     },
   } as unknown as cytoscape.LayoutOptions);
   layout.on('layoutstop', () => settleInitialView(cy));
@@ -267,10 +270,24 @@ export function mountTree(
   controls.appendChild(button('⛶', '适配全图', () => settleInitialView(cy)));
   container.appendChild(controls);
 
+  const focusOn = (id: string): void => {
+    const keep = cy.getElementById(id).closedNeighborhood();
+    cy.elements().forEach((el) => el.addClass('dimmed'));
+    keep.removeClass('dimmed');
+  };
+  const clearFocus = (): void => cy.elements().removeClass('dimmed');
+
   cy.on('tap', 'node', (event) => {
     const id = event.target.id();
     const node = tree.nodes.find((n) => n.id === id);
-    if (node !== undefined) onSelect(node);
+    if (node !== undefined) {
+      onSelect(node);
+      focusOn(id);
+    }
+  });
+
+  cy.on('tap', (event) => {
+    if (event.target === cy) clearFocus();
   });
 
   cy.on('cxttap', (event) => {

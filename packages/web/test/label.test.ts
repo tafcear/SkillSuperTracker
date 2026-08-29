@@ -35,43 +35,43 @@ describe('shortLabel', () => {
 const mk = (kind, label, data = {}, time?) =>
   ({ id: 'x', kind, label, data, ...(time === undefined ? {} : { time }) }) satisfies TreeNode;
 
-describe('cardLines (Coze light card)', () => {
+describe('cardLines (compact light card)', () => {
   it('session card shows agent + model + tokens', () => {
     const n = mk('session', 'Plugin ecosystem doc...', { agent: 'dsh', model: 'deepseek-v4-pro', tokenUsage: { input: 100, output: 50 } });
     expect(cardLines(n)).toEqual({ title: 'Plugin ecosystem doc...', lines: ['dsh', 'deepseek-v4-pro', 'Tokens: 150'] });
   });
 
-  it('turn card shows time line only when no duration', () => {
-    const n = mk('turn', 'Turn 2', {}, 1700000000000);
+  it('turn card merges time and duration into one line', () => {
+    const n = mk('turn', 'Turn 2', { endedAt: 1700000060000 }, 1700000000000);
     const r = cardLines(n);
     expect(r.title).toBe('Turn 2');
     expect(r.lines).toHaveLength(1);
-    expect(r.lines[0]).toMatch(/^\d{2}:\d{2}:\d{2}$/);
+    expect(r.lines[0]).toMatch(/^\d{2}:\d{2} · \d+\.\ds$/);
   });
 
-  it('skill card shows 技能 + source basename', () => {
+  it('skill card is title-only (details live in the side panel)', () => {
     const n = mk('skill', 'writing-plans', { name: 'writing-plans', sourceRoot: 'C:\\skills\\writing-plans' });
-    expect(cardLines(n)).toEqual({ title: 'writing-plans', lines: ['技能', 'writing-plans'] });
+    expect(cardLines(n)).toEqual({ title: 'writing-plans', lines: [] });
   });
 
-  it('tool outcome ok shows result + target basename', () => {
+  it('tool outcome glyph goes inline after the name, target on second line', () => {
     const n = mk('tool', 'mcp__obsidian-zhuku__obsidian_search_notes', { name: 'mcp__obsidian-zhuku__obsidian_search_notes', outcome: 'ok', target: 'C:\\tools\\search.py' });
-    expect(cardLines(n)).toEqual({ title: 'obsidian_search_notes', lines: ['结果: ✓ ok', 'search.py'] });
+    expect(cardLines(n)).toEqual({ title: 'obsidian_search_notes ✓', lines: ['search.py'] });
   });
 
-  it('tool without outcome falls back to 工具', () => {
+  it('tool without outcome has no glyph', () => {
     const n = mk('tool', 'pwsh', { name: 'pwsh' });
-    expect(cardLines(n)).toEqual({ title: 'pwsh', lines: ['工具'] });
+    expect(cardLines(n)).toEqual({ title: 'pwsh', lines: [] });
   });
 
-  it('artifact file shows 产物 only', () => {
+  it('artifact file is title-only', () => {
     const n = mk('artifact', 'C:\\work\\docs\\plan.md', { kind: 'file', path: 'C:\\work\\docs\\plan.md' });
-    expect(cardLines(n)).toEqual({ title: 'plan.md', lines: ['产物'] });
+    expect(cardLines(n)).toEqual({ title: 'plan.md', lines: [] });
   });
 
   it('artifact commit shows message line', () => {
     const n = mk('artifact', 'commit', { kind: 'commit', message: 'feat: x' });
-    expect(cardLines(n)).toEqual({ title: 'commit', lines: ['产物', 'feat: x'] });
+    expect(cardLines(n)).toEqual({ title: 'commit', lines: ['feat: x'] });
   });
 });
 
