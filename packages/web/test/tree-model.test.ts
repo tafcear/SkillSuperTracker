@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import cytoscape from 'cytoscape';
 import { buildTraceTree, type TraceSession } from '@skillsupertracker/core/pure';
-import { toCytoscapeElements } from '../src/tree-view.js';
+import { toCytoscapeElements, chainElements, turnEventElements, eventCountFor } from '../src/tree-view.js';
 
 const trace: TraceSession = {
   schemaVersion: 1,
@@ -47,6 +47,33 @@ describe('toCytoscapeElements (render smoke)', () => {
     ]);
     // 星型边已被移除：session 直连的只有 turn-0
     expect(edges.filter((e) => e.data.source === 'session')).toHaveLength(1);
+  });
+
+  it('collapsed chain view shows session + turns only, with count and marker on turn cards', () => {
+    const tree = buildTraceTree(trace);
+    const els = chainElements(tree, new Set());
+    const ids = els.map((el) => el.data?.id);
+    expect(ids).toEqual(['session', 'turn-0', 'edge-chain-session-turn-0']);
+    const turn = els.find((el) => el.data?.id === 'turn-0')!;
+    expect(String(turn.data?.label)).toContain('▸');
+    expect(String(turn.data?.label)).toContain('2 事件');
+  });
+
+  it('expanded turn marker flips and event elements stay scoped to that turn', () => {
+    const tree = buildTraceTree(trace);
+    const expanded = chainElements(tree, new Set(['turn-0']));
+    const turn = expanded.find((el) => el.data?.id === 'turn-0')!;
+    expect(String(turn.data?.label)).toContain('▾');
+
+    expect(eventCountFor(tree, 'turn-0')).toBe(2);
+    const ev = turnEventElements(tree, 'turn-0');
+    const evIds = ev.map((el) => el.data?.id);
+    expect(evIds).toContain('turn-0-event-0');
+    expect(evIds).toContain('turn-0-event-1');
+    expect(evIds).toContain('edge-turn-0-turn-0-event-0');
+    expect(evIds).toContain('edge-turn-0-event-0-turn-0-event-1');
+    const scope = new Set(['turn-0', 'turn-0-event-0', 'turn-0-event-1']);
+    expect(ev.every((el) => scope.has(String(el.data?.source ?? el.data?.id)) && scope.has(String(el.data?.target ?? el.data?.id)))).toBe(true);
   });
 
   it('runs the elk layered layout headless', async () => {

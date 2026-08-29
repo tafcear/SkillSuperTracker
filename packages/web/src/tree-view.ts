@@ -112,24 +112,26 @@ export function temporalEdges(tree: TraceTree): { id: string; source: string; ta
   return edges;
 }
 
+function nodeDef(tree: TraceTree, node: TreeNode): cytoscape.ElementDefinition {
+  const lines = cardLines(node);
+  return {
+    data: {
+      ...node.data,
+      id: node.id,
+      kind: node.kind,
+      shortLabel: shortLabel(node.kind, node.label),
+      title: lines.title,
+      lines: lines.lines,
+      label: [`${KIND_EMOJI[node.kind] ?? ''} ${lines.title}`.trim(), ...lines.lines].join('\n'),
+    },
+  };
+}
+
 export function toCytoscapeElements(tree: TraceTree): cytoscape.ElementDefinition[] {
   const turnIds = new Set(tree.nodes.filter((n) => n.kind === 'turn').map((n) => n.id));
   const eventEdges = tree.edges.filter((e) => !(e.source === 'session' && turnIds.has(e.target)));
   return [
-    ...tree.nodes.map((node): cytoscape.ElementDefinition => {
-      const lines = cardLines(node);
-      return {
-        data: {
-          ...node.data,
-          id: node.id,
-          kind: node.kind,
-          shortLabel: shortLabel(node.kind, node.label),
-          title: lines.title,
-          lines: lines.lines,
-          label: [`${KIND_EMOJI[node.kind] ?? ''} ${lines.title}`.trim(), ...lines.lines].join('\n'),
-        },
-      };
-    }),
+    ...tree.nodes.map((node) => nodeDef(tree, node)),
     ...eventEdges.map((edge): cytoscape.ElementDefinition => ({
       data: { id: edge.id, source: edge.source, target: edge.target },
     })),
@@ -137,6 +139,56 @@ export function toCytoscapeElements(tree: TraceTree): cytoscape.ElementDefinitio
       data: { id: edge.id, source: edge.source, target: edge.target, chain: true },
     })),
   ];
+}
+
+export function eventCountFor(tree: TraceTree, turnId: string): number {
+  return tree.nodes.filter((n) => n.id.startsWith(`${turnId}-event-`)).length;
+}
+
+function turnMarker(expanded: boolean): string {
+  return expanded ? '▾' : '▸';
+}
+
+function turnDisplayLabel(tree: TraceTree, node: TreeNode, expanded: boolean): string {
+  const c = cardLines(node);
+  const lines = [...c.lines];
+  const count = eventCountFor(tree, node.id);
+  if (count > 0) lines.push(`${count} 事件`);
+  return [`${KIND_EMOJI.turn} ${c.title} ${turnMarker(expanded)}`.trim(), ...lines].join('\n');
+}
+
+/**
+ * Level 1 of the collapsible view: session + turn chain only. Turn cards carry
+ * an event count and a ▸/▾ marker so the graph reads as one clean timeline;
+ * events stay hidden until their turn is expanded (see turnEventElements).
+ */
+export function chainElements(tree: TraceTree, expanded: ReadonlySet<string>): cytoscape.ElementDefinition[] {
+  const nodes = tree.nodes
+    .filter((n) => n.kind === 'session' || n.kind === 'turn')
+    .map((node) => {
+      const def = nodeDef(tree, node);
+      if (node.kind === 'turn') {
+        def.data.label = turnDisplayLabel(tree, node, expanded.has(node.id));
+      }
+      return def;
+    });
+  const edges = temporalEdges(tree).map((edge): cytoscape.ElementDefinition => ({
+    data: { id: edge.id, source: edge.source, target: edge.target, chain: true },
+  }));
+  return [...nodes, ...edges];
+}
+
+/** Level 2: one turn's event nodes + the edges binding them to it (skill→tool chains included). */
+export function turnEventElements(tree: TraceTree, turnId: string): cytoscape.ElementDefinition[] {
+  const prefix = `${turnId}-event-`;
+  const ids = new Set(tree.nodes.filter((n) => n.id.startsWith(prefix)).map((n) => n.id));
+  const nodes = tree.nodes.filter((n) => ids.has(n.id)).map((node) => nodeDef(tree, node));
+  const edges = tree.edges
+    .filter((e) => (e.source === turnId && ids.has(e.target)) || (ids.has(e.source) && ids.has(e.target)))
+    .map((edge): cytoscape.ElementDefinition => ({
+      data: { id: edge.id, source: edge.source, target: edge.target },
+    }));
+  return [...nodes, ...edges];
 }
 
 export const TREE_STYLE: cytoscape.StylesheetStyle[] = [
@@ -231,9 +283,10 @@ export function mountTree(
   tree: TraceTree,
   onSelect: (node: TreeNode) => void,
 ): TreeViewHandle {
+  const expanded = new Set<string>();
   const cy = cytoscape({
     container,
-    elements: toCytoscapeElements(tree),
+    elements: chainElements(tree, expanded),
     wheelSensitivity: 0.2,
     minZoom: 0.05,
     maxZoom: 2,
@@ -241,7 +294,7 @@ export function mountTree(
     style: TREE_STYLE,
   } as cytoscape.CytoscapeOptions);
 
-  const layout = cy.layout({
+  const layoutOpts = {
     name: 'elk',
     elk: {
       'elk.algorithm': 'layered',
@@ -249,9 +302,40 @@ export function mountTree(
       'elk.spacing.nodeNode': 24,
       'elk.spacing.nodeNodeBetweenLayers': 56,
     },
-  } as unknown as cytoscape.LayoutOptions);
+  } as unknown as cytoscape.LayoutOptions;
+  const layout = cy.layout(layoutOpts);
   layout.on('layoutstop', () => settleInitialView(cy));
   layout.run();
+
+  /** 展开/收起一个轮次后重排，并保持可读缩放、居中到被操作的轮次 */
+  const relayoutAround = (turnId: string): void => {
+    const l = cy.layout(layoutOpts);
+    l.on('layoutstop', () => {
+      if (cy.zoom() < 0.5) cy.zoom(0.5);
+      const anchor = cy.getElementById(turnId);
+      if (anchor.nonempty()) cy.center(anchor);
+    });
+    l.run();
+  };
+
+  const toggleTurn = (turnId: string): void => {
+    if (expanded.has(turnId)) {
+      const evNodes = cy.nodes(`[id ^= "${turnId}-event-"]`);
+      evNodes.connectedEdges().remove();
+      evNodes.remove();
+      expanded.delete(turnId);
+      clearFocus();
+    } else {
+      cy.add(turnEventElements(tree, turnId));
+      expanded.add(turnId);
+      clearFocus();
+    }
+    const node = tree.nodes.find((n) => n.id === turnId);
+    if (node !== undefined) {
+      cy.getElementById(turnId).data('label', turnDisplayLabel(tree, node, expanded.has(turnId)));
+    }
+    relayoutAround(turnId);
+  };
 
   const controls = document.createElement('div');
   controls.className = 'canvas-controls';
@@ -280,8 +364,11 @@ export function mountTree(
   cy.on('tap', 'node', (event) => {
     const id = event.target.id();
     const node = tree.nodes.find((n) => n.id === id);
-    if (node !== undefined) {
-      onSelect(node);
+    if (node === undefined) return;
+    onSelect(node);
+    if (node.kind === 'turn') {
+      toggleTurn(id);
+    } else {
       focusOn(id);
     }
   });
