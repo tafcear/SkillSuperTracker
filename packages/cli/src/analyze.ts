@@ -13,22 +13,24 @@ export interface AnalyzeDeps {
 }
 
 export const ANALYZE_USAGE = [
-  'usage: skillsupertracker analyze <session-id|dir> [--root <dir>] [--out <file>] [--open]',
-  '  <session-id|dir>  DSH session id (searched under --root) or a path to a session directory / artifact file',
+  'usage: skillsupertracker analyze <session-id|dir>... [--root <dir>] [--recent <n>] [--out <file>] [--open]',
+  '  <session-id|dir>  one or more DSH session ids (searched under --root) or paths to session dirs / artifact files',
   '  --root <dir>      sessions root (default ~/.dsh/sessions)',
-  '  --out <file>      output HTML path (default analyze-<id>.html in the current directory)',
+  '  --recent <n>      embed the n most recent sessions under --root instead of naming ids (default 10)',
+  '  --out <file>      output HTML path (default analyze-<id>.html / analyze-multi.html)',
   '  --open            open the output in the default browser after writing',
 ].join('\n');
 
 interface AnalyzeArgs {
-  target?: string;
+  targets: string[];
   root?: string;
   out?: string;
   open: boolean;
+  recent?: number;
 }
 
 export function parseAnalyzeArgs(argv: string[]): AnalyzeArgs | undefined {
-  const args: AnalyzeArgs = { open: false };
+  const args: AnalyzeArgs = { targets: [], open: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--open') args.open = true;
@@ -40,11 +42,15 @@ export function parseAnalyzeArgs(argv: string[]): AnalyzeArgs | undefined {
       const v = argv[++i];
       if (v === undefined) return undefined;
       args.out = v;
+    } else if (a === '--recent') {
+      const v = argv[++i];
+      const n = v === undefined ? Number.NaN : Number(v);
+      if (!Number.isInteger(n) || n <= 0) return undefined;
+      args.recent = n;
     } else if (a.startsWith('-')) return undefined;
-    else if (args.target === undefined) args.target = a;
-    else return undefined;
+    else args.targets.push(a);
   }
-  return args.target === undefined ? undefined : args;
+  return args.targets.length === 0 && args.recent === undefined ? undefined : args;
 }
 
 async function isFile(p: string): Promise<boolean> {
@@ -73,6 +79,25 @@ async function resolveTarget(target: string, rootOverride?: string): Promise<str
   return sources.find((s) => basename(s.sessionDir) === target)?.path;
 }
 
+/** --recent：按工件 mtime 取 root 下最近 n 个会话 */
+async function recentTargets(n: number, rootOverride?: string): Promise<string[]> {
+  const root = rootOverride ?? join(homedir(), '.dsh', 'sessions');
+  const sources = await dshAdapter.locate(root);
+  const withTime = await Promise.all(sources.map(async (s) => {
+    let mtime = 0;
+    try {
+      mtime = (await stat(s.path)).mtimeMs;
+    } catch {
+      mtime = 0;
+    }
+    return { path: s.path, mtime };
+  }));
+  return withTime
+    .sort((a, b) => b.mtime - a.mtime)
+    .slice(0, n)
+    .map((s) => s.path);
+}
+
 function slugFor(id: string | undefined, fallback: string): string {
   const raw = id ?? fallback;
   return raw.replaceAll(/[^A-Za-z0-9._-]/g, '-');
@@ -80,19 +105,42 @@ function slugFor(id: string | undefined, fallback: string): string {
 
 export async function runAnalyze(argv: string[], deps: AnalyzeDeps = {}): Promise<number> {
   const args = parseAnalyzeArgs(argv);
-  if (args === undefined || args.target === undefined) {
+  if (args === undefined) {
     (deps.stderr ?? console.error)(ANALYZE_USAGE);
     return 2;
   }
-  const artifact = await resolveTarget(args.target, args.root);
-  if (artifact === undefined) {
-    (deps.stderr ?? console.error)(`no DSH session found for "${args.target}"`);
+  const errors = deps.stderr ?? console.error;
+  const artifacts: string[] = [];
+  if (args.recent !== undefined) {
+    artifacts.push(...(await recentTargets(args.recent, args.root)));
+    if (artifacts.length === 0) {
+      errors(`no DSH sessions found under root`);
+      return 1;
+    }
+  } else {
+    for (const target of args.targets) {
+      const artifact = await resolveTarget(target, args.root);
+      if (artifact === undefined) errors(`no DSH session found for "${target}", skipping`);
+      else artifacts.push(artifact);
+    }
+  }
+  const traces = [];
+  for (const artifact of artifacts) {
+    try {
+      traces.push(await dshAdapter.parse(artifact));
+    } catch (err) {
+      errors(`failed to parse ${basename(artifact)}: ${err instanceof Error ? err.message : String(err)}, skipping`);
+    }
+  }
+  if (traces.length === 0) {
+    errors('no session parsed successfully');
     return 1;
   }
-  const trace = await dshAdapter.parse(artifact);
-  const out = args.out ?? `analyze-${slugFor(trace.session.id, basename(dirname(artifact)))}.html`;
-  await renderTraceHtml({ kind: 'analyze', trace }, { template: deps.template, out });
-  (deps.stdout ?? console.log)(`wrote ${out}`);
+  const out = args.out ?? (traces.length === 1
+    ? `analyze-${slugFor(traces[0].session.id, basename(dirname(artifacts[0])))}.html`
+    : 'analyze-multi.html');
+  await renderTraceHtml({ kind: 'analyze', traces }, { template: deps.template, out });
+  (deps.stdout ?? console.log)(`wrote ${out} (${traces.length} session${traces.length === 1 ? '' : 's'})`);
   if (args.open) await (deps.opener ?? openPath)(out);
   return 0;
 }

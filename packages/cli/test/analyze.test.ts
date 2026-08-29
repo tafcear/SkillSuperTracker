@@ -2,7 +2,7 @@ import { readFile, rm, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { runAnalyze } from '../src/analyze.js';
-import { makeSession, makeTempDir, removeDir, SKILL_SESSION_LINES, writeStubTemplate } from './helpers.js';
+import { makeSession, makeTempDir, removeDir, SKILL_SESSION_LINES, writeStubTemplate, headerLine } from './helpers.js';
 
 let dir: string;
 let opened: string[];
@@ -43,6 +43,34 @@ describe('runAnalyze', () => {
     expect(html).toContain('writing-plans');
     expect(html).toContain('session-aaa');
     expect(opened).toEqual([]); // no --open
+  });
+
+  it('embeds multiple named sessions into one HTML for the in-app switcher', async () => {
+    const dirA = await makeSession(dir, '--proj--', 'session-aaa', SKILL_SESSION_LINES);
+    const bbbLines = [headerLine('session-bbb', 'C:\\work'), ...SKILL_SESSION_LINES.slice(1)];
+    const dirB = await makeSession(dir, '--proj--', 'session-bbb', bbbLines);
+    const template = await writeStubTemplate(dir);
+    const out = join(dir, 'multi.html');
+    const code = await runAnalyze([dirA, dirB, '--out', out], deps(template));
+    expect(code).toBe(0);
+    const html = await readFile(out, 'utf8');
+    expect(html).toContain('"traces":[');
+    expect(html).toContain('session-aaa');
+    expect(html).toContain('session-bbb');
+  });
+
+  it('embeds the n most recent sessions with --recent', async () => {
+    await makeSession(dir, '--proj--', 'session-aaa', SKILL_SESSION_LINES);
+    const bbbLines = [headerLine('session-bbb', 'C:\\work'), ...SKILL_SESSION_LINES.slice(1)];
+    await makeSession(dir, '--proj--', 'session-bbb', bbbLines);
+    const template = await writeStubTemplate(dir);
+    const out = join(dir, 'recent.html');
+    const code = await runAnalyze(['--recent', '2', '--root', dir, '--out', out], deps(template));
+    expect(code).toBe(0);
+    const html = await readFile(out, 'utf8');
+    expect(html).toContain('"traces":[');
+    expect(html).toContain('session-aaa');
+    expect(html).toContain('session-bbb');
   });
 
   it('resolves a session by id under a custom --root', async () => {
