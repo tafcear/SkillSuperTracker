@@ -2,7 +2,8 @@ import { buildTraceTree, traceSessionSchema, statReportSchema, type StatReport, 
 import { renderDetail } from './detail.js';
 import { escapeHtml } from './escape.js';
 import { renderHeat } from './heat-view.js';
-import { mountTree, KIND_COLORS, KIND_FILLS } from './tree-view.js';
+import { mountTree } from './tree-view.js';
+import { getTheme, initTheme, onThemeChange, themePalette, toggleTheme, type Theme } from './theme.js';
 
 type EmbeddedData = {
   kind: 'analyze';
@@ -52,11 +53,16 @@ const LEGEND_ITEMS: Array<[string, string]> = [
   ['artifact', '产物'],
 ];
 
-function legendMarkup(): string {
+function themeButtonMarkup(): string {
+  return `<button id="theme-toggle" class="theme-toggle" title="切换深浅主题（T）">${getTheme() === 'dark' ? '☀️ 浅色' : '🌙 深色'}</button>`;
+}
+
+function legendMarkup(t: Theme): string {
+  const p = themePalette(t);
   const items = LEGEND_ITEMS
     .map(([kind, label]) => {
-      const color = KIND_COLORS[kind as keyof typeof KIND_COLORS];
-      const fill = KIND_FILLS[kind as keyof typeof KIND_FILLS];
+      const color = p.strokes[kind as keyof typeof p.strokes];
+      const fill = p.fills[kind as keyof typeof p.fills];
       return `<span class="legend-item"><i class="legend-dot" style="border:2px solid ${color};background:${fill}"></i>${label}</span>`;
     })
     .join('');
@@ -64,15 +70,32 @@ function legendMarkup(): string {
 }
 
 export function mountApp(root: HTMLElement): void {
+  initTheme();
   const data = readEmbeddedData();
   const header = data.kind === 'analyze'
-    ? `<header class="top"><span class="top-title">skillsupertracker — ${escapeHtml(sessionTitle(data.trace))}</span><span class="status-pill">${statusPill(data.trace)}</span></header>`
-    : '<header class="top"><span class="top-title">skillsupertracker — 跨会话热度统计</span></header>';
+    ? `<header class="top"><span class="top-title">skillsupertracker — ${escapeHtml(sessionTitle(data.trace))}</span><span class="top-right"><span class="status-pill">${statusPill(data.trace)}</span>${themeButtonMarkup()}</span></header>`
+    : `<header class="top"><span class="top-title">skillsupertracker — 跨会话热度统计</span><span class="top-right">${themeButtonMarkup()}</span></header>`;
   root.innerHTML = `
     ${header}
     <main class="split">
-      ${data.kind === 'analyze' ? `<div id="tree">${legendMarkup()}</div><aside id="detail"></aside>` : '<div id="heat"></div>'}
+      ${data.kind === 'analyze' ? `<div id="tree">${legendMarkup(getTheme())}</div><aside id="detail"></aside>` : '<div id="heat"></div>'}
     </main>`;
+
+  const themeButton = root.querySelector<HTMLButtonElement>('#theme-toggle');
+  const syncThemeUi = (t: Theme): void => {
+    if (themeButton) themeButton.textContent = t === 'dark' ? '☀️ 浅色' : '🌙 深色';
+    const legend = root.querySelector('.legend');
+    if (legend !== null && data.kind === 'analyze') legend.outerHTML = legendMarkup(t);
+  };
+  themeButton?.addEventListener('click', () => toggleTheme());
+  onThemeChange(syncThemeUi);
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 't' && e.key !== 'T') return;
+    const tag = (e.target as HTMLElement | null)?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    toggleTheme();
+  });
+
   if (data.kind === 'stat') {
     renderHeat(root.querySelector<HTMLElement>('#heat')!, data.stat);
     return;

@@ -1,28 +1,12 @@
 import cytoscape from 'cytoscape';
 import elk from 'cytoscape-elk';
 import type { TraceTree, TreeNode, TreeNodeKind } from '@skillsupertracker/core/pure';
+import { getTheme, onThemeChange, themePalette, type Theme } from './theme.js';
 import { menuStateFor } from './menu.js';
 
 cytoscape.use(elk);
 
-/** archify 风语义色：颜色只表意不装饰（DESIGN.md Semantic Color Rule），取浅色主题描边档 */
-export const KIND_COLORS: Record<TreeNodeKind, string> = {
-  session: '#64748B',
-  turn: '#0891B2',
-  skill: '#059669',
-  tool: '#EA580C',
-  artifact: '#7C3AED',
-};
-
-/** 与描边同色系的浅底（约 50 号色阶） */
-export const KIND_FILLS: Record<TreeNodeKind, string> = {
-  session: '#F8FAFC',
-  turn: '#ECFEFF',
-  skill: '#ECFDF5',
-  tool: '#FFF7ED',
-  artifact: '#F5F3FF',
-};
-
+/** archify 语义色：颜色只表意不装饰（DESIGN.md Semantic Color Rule），明暗主题分别取描边档 */
 export const MONO_FONT = '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 
 export const KIND_EMOJI: Record<TreeNodeKind, string> = {
@@ -236,76 +220,84 @@ export function alignChainToBottom(cy: cytoscape.Core, tree: TraceTree): void {
   chainNodes.forEach((n) => n.position({ x: n.position().x, y: chainY }));
 }
 
-export const TREE_STYLE: cytoscape.StylesheetStyle[] = [
-  {
-    selector: 'node',
-    style: {
-      shape: 'round-rectangle',
-      width: 'label',
-      height: 'label',
-      padding: '10px',
-      'background-color': (el: cytoscape.NodeSingular) => KIND_FILLS[String(el.data('kind')) as TreeNodeKind] ?? '#F8FAFC',
-      'text-halign': 'center',
-      'text-valign': 'center',
-      'text-wrap': 'wrap',
-      'text-max-width': '150px',
-      'line-height': 1.4,
-      'font-family': MONO_FONT,
-      'font-size': 12,
-      'font-weight': 600,
-      color: '#1E293B',
-      'border-width': 2,
-      'border-color': (el: cytoscape.NodeSingular) => KIND_COLORS[String(el.data('kind')) as TreeNodeKind] ?? '#94A3B8',
-      'transition-property': 'opacity',
-      'transition-duration': '150ms',
-      label: 'data(label)',
-    } as cytoscape.Css.Node,
-  },
-  {
-    selector: 'node[kind = "skill"]',
-    style: { 'font-weight': 700 },
-  },
-  {
-    selector: 'node:selected',
-    style: {
-      'border-width': 3,
-      'border-color': '#0E7490',
-      'shadow-blur': 7,
-      'shadow-color': '#22D3EE',
-      'shadow-opacity': 0.55,
-      'shadow-offset-x': 0,
-      'shadow-offset-y': 0,
-    } as cytoscape.Css.Node,
-  },
-  {
-    // 选中聚焦：与选中节点无关的部分整体淡出，压低画面噪声
-    selector: '.dimmed',
-    style: { opacity: 0.12 },
-  },
-  {
-    // archify 主流程：proof green 直角航线
-    selector: 'edge',
-    style: {
-      width: 1.5,
-      'line-color': '#94A3B8',
-      'target-arrow-shape': 'triangle',
-      'target-arrow-color': '#94A3B8',
-      'curve-style': 'taxi',
-      'taxi-direction': 'auto',
-      'taxi-turn': '18px',
-      'transition-property': 'opacity',
-      'transition-duration': '150ms',
+export function treeStyle(t: Theme): cytoscape.StylesheetStyle[] {
+  const p = themePalette(t);
+  return [
+    {
+      selector: 'node',
+      style: {
+        shape: 'round-rectangle',
+        width: 'label',
+        height: 'label',
+        padding: '10px',
+        'background-color': (el: cytoscape.NodeSingular) =>
+          themePalette(getTheme()).fills[String(el.data('kind')) as TreeNodeKind] ?? p.fills.session,
+        'text-halign': 'center',
+        'text-valign': 'center',
+        'text-wrap': 'wrap',
+        'text-max-width': '150px',
+        'line-height': 1.4,
+        'font-family': MONO_FONT,
+        'font-size': 12,
+        'font-weight': 600,
+        color: p.text,
+        'border-width': 2,
+        'border-color': (el: cytoscape.NodeSingular) =>
+          themePalette(getTheme()).strokes[String(el.data('kind')) as TreeNodeKind] ?? p.strokes.session,
+        'transition-property': 'opacity',
+        'transition-duration': '150ms',
+        label: 'data(label)',
+      } as cytoscape.Css.Node,
     },
-  },
-  {
-    selector: 'edge[chain]',
-    style: {
-      width: 2,
-      'line-color': '#059669',
-      'target-arrow-color': '#059669',
+    {
+      selector: 'node[kind = "skill"]',
+      style: { 'font-weight': 700 },
     },
-  },
-];
+    {
+      selector: 'node:selected',
+      style: {
+        'border-width': 3,
+        'border-color': p.selectedBorder,
+        'shadow-blur': 7,
+        'shadow-color': p.selectedGlow,
+        'shadow-opacity': 0.55,
+        'shadow-offset-x': 0,
+        'shadow-offset-y': 0,
+      } as cytoscape.Css.Node,
+    },
+    {
+      // 选中聚焦：与选中节点无关的部分整体淡出，压低画面噪声
+      selector: '.dimmed',
+      style: { opacity: 0.12 },
+    },
+    {
+      // archify 主流程：proof green 直角航线
+      selector: 'edge',
+      style: {
+        width: 1.5,
+        'line-color': p.edge,
+        'target-arrow-shape': 'triangle',
+        'target-arrow-color': p.edge,
+        'curve-style': 'taxi',
+        'taxi-direction': 'auto',
+        'taxi-turn': '18px',
+        'transition-property': 'opacity',
+        'transition-duration': '150ms',
+      },
+    },
+    {
+      selector: 'edge[chain]',
+      style: {
+        width: 2,
+        'line-color': p.chain,
+        'target-arrow-color': p.chain,
+      },
+    },
+  ];
+}
+
+/** 兼容别名：浅色主题样式（运行时请用 treeStyle(getTheme()) 以支持主题切换） */
+export const TREE_STYLE = treeStyle('light');
 
 export interface TreeViewHandle {
   cy: cytoscape.Core;
@@ -335,8 +327,9 @@ export function mountTree(
     minZoom: 0.05,
     maxZoom: 2,
     background: false,
-    style: TREE_STYLE,
+    style: treeStyle(getTheme()),
   } as cytoscape.CytoscapeOptions);
+  const offTheme = onThemeChange((t) => cy.style(treeStyle(t)));
 
   const layoutOpts = {
     name: 'elk',
@@ -526,6 +519,7 @@ export function mountTree(
   return {
     cy,
     destroy: () => {
+      offTheme();
       controls.remove();
       bar.remove();
       cy.destroy();

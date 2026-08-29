@@ -5,52 +5,91 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>skillsupertracker</title>
     <style>
-      :root { color-scheme: light; --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-      body { margin: 0; font-family: var(--mono); background: #FFFFFF; color: #1E293B; }
+      :root {
+        color-scheme: light;
+        --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        --bg: #FFFFFF;
+        --panel: #FFFFFF;
+        --panel-border: #E5E7EB;
+        --text: #1E293B;
+        --muted: #6B7280;
+        --faint: #9CA3AF;
+        --hover: #F3F4F6;
+        --row-border: #F3F4F6;
+        --grid: rgba(148,163,184,.14);
+        --pill-bg: #DCFCE7;
+        --pill-text: #16A34A;
+        --accent: #0E7490;
+        --accent-text: #FFFFFF;
+        --shadow: 0 2px 8px rgba(0,0,0,.06);
+      }
+      body.dark {
+        color-scheme: dark;
+        --bg: #020617;
+        --panel: #0F172A;
+        --panel-border: #1E293B;
+        --text: #F1F5F9;
+        --muted: #94A3B8;
+        --faint: #64748B;
+        --hover: #1E293B;
+        --row-border: #1E293B;
+        --grid: rgba(148,163,184,.07);
+        --pill-bg: rgba(52,211,153,.15);
+        --pill-text: #34D399;
+        --accent: #22D3EE;
+        --accent-text: #020617;
+        --shadow: 0 2px 10px rgba(0,0,0,.45);
+      }
+      body { margin: 0; font-family: var(--mono); background: var(--bg); color: var(--text); }
       #app { display: flex; flex-direction: column; height: 100vh; }
-      header.top { padding: 8px 14px; font-size: 14px; background: #FFFFFF; border-bottom: 1px solid #E2E2E6; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      header.top { padding: 8px 14px; font-size: 14px; background: var(--panel); border-bottom: 1px solid var(--panel-border); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
       .top-title { font-weight: 600; }
+      .top-right { display: inline-flex; align-items: center; gap: 10px; }
+      .theme-toggle { border: 1px solid var(--panel-border); background: var(--panel); color: var(--text); border-radius: 8px; padding: 3px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+      .theme-toggle:hover { background: var(--hover); }
       main.split { flex: 1; display: flex; min-height: 0; }
-      #tree { flex: 1; min-width: 0; position: relative; background-color: #FFFFFF; background-image: linear-gradient(to right, rgba(148,163,184,.14) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,.14) 1px, transparent 1px); background-size: 24px 24px; }
-      #detail { width: 320px; overflow: auto; border-left: 1px solid #E2E2E6; padding: 12px; font-size: 13px; background: #FFFFFF; color: #1F2329; }
-      #heat { flex: 1; overflow: auto; padding: 12px; }
-      .legend { position: absolute; left: 12px; bottom: 12px; z-index: 20; background: rgba(255,255,255,.94); border: 1px solid #E5E7EB; border-radius: 10px; padding: 8px 12px; font-size: 12px; color: #475569; box-shadow: 0 2px 8px rgba(0,0,0,.06); pointer-events: none; }
-      .legend-title { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #94A3B8; margin-bottom: 6px; }
+      #tree { flex: 1; min-width: 0; position: relative; background-color: var(--bg); background-image: linear-gradient(to right, var(--grid) 1px, transparent 1px), linear-gradient(to bottom, var(--grid) 1px, transparent 1px); background-size: 24px 24px; }
       .filter-bar { position: absolute; left: 12px; top: 12px; z-index: 20; display: flex; gap: 6px; }
-      .filter-bar button { border: 1px solid #E5E7EB; background: rgba(255,255,255,.94); color: #4B5563; border-radius: 999px; padding: 4px 12px; font-size: 12px; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,.06); }
-      .filter-bar button:hover { background: #F3F4F6; }
-      .filter-bar button.active { background: #6366F1; border-color: #6366F1; color: #FFFFFF; }
+      .filter-bar button { border: 1px solid var(--panel-border); background: var(--panel); color: var(--muted); border-radius: 999px; padding: 4px 12px; font-size: 12px; font-family: var(--mono); cursor: pointer; box-shadow: var(--shadow); }
+      .filter-bar button:hover { background: var(--hover); }
+      .filter-bar button.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+      #detail { width: 320px; overflow: auto; border-left: 1px solid var(--panel-border); padding: 12px; font-size: 13px; background: var(--panel); color: var(--text); }
+      #heat { flex: 1; overflow: auto; padding: 12px; }
+      .legend { position: absolute; left: 12px; bottom: 12px; z-index: 20; background: var(--panel); border: 1px solid var(--panel-border); border-radius: 10px; padding: 8px 12px; font-size: 12px; color: var(--muted); box-shadow: var(--shadow); pointer-events: none; }
+      .legend-title { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-bottom: 6px; }
       .legend-items { display: flex; gap: 12px; flex-wrap: wrap; }
       .legend-item { display: inline-flex; align-items: center; gap: 5px; }
       .legend-dot { width: 12px; height: 12px; border-radius: 4px; display: inline-block; box-sizing: border-box; }
-      .legend-hint { margin-top: 6px; color: #9CA3AF; font-size: 11px; }
+      .legend-hint { margin-top: 6px; color: var(--faint); font-size: 11px; }
       .canvas-controls { position: absolute; right: 12px; bottom: 12px; z-index: 20; display: flex; flex-direction: column; gap: 6px; }
-      .canvas-controls button { width: 32px; height: 32px; border-radius: 8px; border: 1px solid #E5E7EB; background: #FFFFFF; color: #4B5563; font-size: 15px; line-height: 1; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
-      .canvas-controls button:hover { background: #F3F4F6; }
-      .heat-empty { background: #FFFFFF; border: 1px dashed #D1D5DB; border-radius: 10px; padding: 48px 24px; text-align: center; color: #6B7280; margin-top: 16px; }
-      .heat-empty h2 { margin: 0 0 6px; font-size: 15px; color: #374151; }
+      .canvas-controls button { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--panel-border); background: var(--panel); color: var(--muted); font-size: 15px; line-height: 1; cursor: pointer; box-shadow: var(--shadow); font-family: var(--mono); }
+      .canvas-controls button:hover { background: var(--hover); }
+      .heat-empty { background: var(--panel); border: 1px dashed var(--panel-border); border-radius: 10px; padding: 48px 24px; text-align: center; color: var(--muted); margin-top: 16px; }
+      .heat-empty h2 { margin: 0 0 6px; font-size: 15px; color: var(--text); }
       .heat-empty p { margin: 0; font-size: 13px; }
       .spark { display: inline-flex; align-items: flex-end; gap: 2px; height: 20px; vertical-align: middle; }
       .spark i { width: 6px; min-height: 2px; border-radius: 2px 2px 0 0; background: #3B82F6; display: inline-block; }
-      table.heat { border-collapse: collapse; width: 100%; background: #FFFFFF; }
-      table.heat th, table.heat td { border: 1px solid #E2E2E6; padding: 6px 10px; text-align: left; }
-      table.heat th { background: #F9FAFB; }
-      .ctx-menu { position: absolute; z-index: 1000; background: #FFFFFF; border: 1px solid #E2E2E6; border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.10); padding: 4px 0; min-width: 160px; font-size: 13px; }
+      body.dark .spark i { background: #22D3EE; }
+      table.heat { border-collapse: collapse; width: 100%; background: var(--panel); }
+      table.heat th, table.heat td { border: 1px solid var(--panel-border); padding: 6px 10px; text-align: left; }
+      table.heat th { background: var(--hover); }
+      .ctx-menu { position: absolute; z-index: 1000; background: var(--panel); border: 1px solid var(--panel-border); border-radius: 6px; box-shadow: var(--shadow); padding: 4px 0; min-width: 160px; font-size: 13px; }
       .ctx-menu button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 7px 14px; cursor: pointer; color: inherit; font: inherit; }
       .ctx-menu button:disabled { opacity: 0.45; cursor: not-allowed; }
-      .ctx-menu button:hover:not(:disabled) { background: #F3F4F6; }
-      .pill { background: #F3F4F6; border-radius: 6px; padding: 2px 8px; margin: 2px 4px 2px 0; display: inline-block; font-size: 12px; color: #4B5563; }
-      .status-pill { background: #DCFCE7; color: #16A34A; border-radius: 999px; padding: 3px 10px; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
+      .ctx-menu button:hover:not(:disabled) { background: var(--hover); }
+      .pill { background: var(--hover); border-radius: 6px; padding: 2px 8px; margin: 2px 4px 2px 0; display: inline-block; font-size: 12px; color: var(--muted); }
+      .status-pill { background: var(--pill-bg); color: var(--pill-text); border-radius: 999px; padding: 3px 10px; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
       .kind-icon { width: 34px; height: 34px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 16px; flex: none; }
       .detail-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-      .detail-heading h2 { margin: 0; font-size: 16px; color: #1F2329; }
-      .detail-subtitle { color: #6B7280; font-size: 12px; }
+      .detail-heading h2 { margin: 0; font-size: 16px; color: var(--text); }
+      .detail-subtitle { color: var(--muted); font-size: 12px; }
       .detail-section { margin-bottom: 16px; }
-      .detail-section h3 { margin: 0 0 6px; font-size: 12px; color: #9CA3AF; text-transform: uppercase; letter-spacing: .03em; }
-      .detail-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #F3F4F6; font-size: 13px; }
-      .detail-key { color: #6B7280; }
-      .detail-val { color: #1F2329; }
+      .detail-section h3 { margin: 0 0 6px; font-size: 12px; color: var(--faint); text-transform: uppercase; letter-spacing: .03em; }
+      .detail-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--row-border); font-size: 13px; }
+      .detail-key { color: var(--muted); }
+      .detail-val { color: var(--text); }
       .detail-data { display: flex; flex-wrap: wrap; }
+      .detail-empty { color: var(--faint); font-size: 12px; }
     </style>
   </head>
   <body>
