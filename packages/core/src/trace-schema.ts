@@ -57,6 +57,15 @@ export const traceSessionSchema = z.object({
     }).optional(),
   }),
   turns: z.array(traceTurnSchema),
+  /** 技能名 → 技能文档摘要（分类/简要概述/详细作用，来自 SKILL.md，读取失败时缺省） */
+  skillMeta: z.record(
+    z.string(),
+    z.object({
+      category: z.string().optional(),
+      summary: z.string().optional(),
+      detail: z.string().optional(),
+    }),
+  ).optional(),
   stats: z.object({
     skippedLines: z.number().int().nonnegative(),
     skippedChunkRows: z.number().int().nonnegative(),
