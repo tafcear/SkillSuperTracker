@@ -239,16 +239,16 @@ export function treeStyle(t: Theme): cytoscape.StylesheetStyle[] {
         shape: 'round-rectangle',
         width: 'label',
         height: 'label',
-        padding: '10px',
+        padding: '12px',
         'background-color': (el: cytoscape.NodeSingular) =>
           themePalette(getTheme()).fills[String(el.data('kind')) as TreeNodeKind] ?? p.fills.session,
         'text-halign': 'center',
         'text-valign': 'center',
         'text-wrap': 'wrap',
-        'text-max-width': '150px',
+        'text-max-width': '170px',
         'line-height': 1.4,
         'font-family': MONO_FONT,
-        'font-size': 12,
+        'font-size': 13,
         'font-weight': 600,
         color: p.text,
         'border-width': 2,
@@ -317,8 +317,8 @@ export interface TreeViewHandle {
 /** fit 后若整体缩放低于可读阈值，锚定 session 用可读缩放展示首屏 */
 function settleInitialView(cy: cytoscape.Core): void {
   cy.fit(undefined, 48);
-  if (cy.zoom() < 0.5) {
-    cy.zoom(0.5);
+  if (cy.zoom() < 0.6) {
+    cy.zoom(0.6);
     const anchor = cy.getElementById('session');
     if (anchor.nonempty()) cy.center(anchor);
   }
@@ -333,9 +333,9 @@ export function mountTree(
   const cy = cytoscape({
     container,
     elements: chainElements(tree, expanded),
-    wheelSensitivity: 0.2,
+    wheelSensitivity: 0.3,
     minZoom: 0.05,
-    maxZoom: 2,
+    maxZoom: 2.5,
     background: false,
     style: treeStyle(getTheme()),
   } as cytoscape.CytoscapeOptions);
@@ -367,7 +367,7 @@ export function mountTree(
     const l = cy.layout({ ...layoutOpts, animate: false });
     l.on('layoutstop', () => {
       alignChainToBottom(cy, tree);
-      const targetZoom = Math.max(cy.zoom(), 0.5);
+      const targetZoom = Math.max(cy.zoom(), 0.6);
       const anchor = cy.getElementById(turnId);
       const dur = motionOk ? 300 : 0;
       const finals = new Map(cy.nodes().map((n) => [n.id(), { x: n.position().x, y: n.position().y }]));
