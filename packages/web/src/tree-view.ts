@@ -83,8 +83,11 @@ export function cardLines(node: TreeNode): { title: string; lines: string[] } {
       if (node.time !== undefined) parts.push(formatTime(node.time).slice(0, 5));
       return { title: node.label, lines: parts };
     }
-    case 'skill':
-      return { title: node.label, lines: [] };
+    case 'skill': {
+      const lines: string[] = [];
+      if (typeof node.data.category === 'string' && node.data.category !== '') lines.push(node.data.category);
+      return { title: node.label, lines };
+    }
     case 'tool': {
       const glyph = node.data.outcome === 'error' ? ' ✗' : node.data.outcome === 'ok' ? ' ✓' : '';
       const lines: string[] = [];

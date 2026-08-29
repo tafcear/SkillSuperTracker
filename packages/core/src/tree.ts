@@ -66,7 +66,14 @@ export function buildTraceTree(trace: TraceSession): TraceTree {
       if (event.type === 'skill-load') {
         kind = 'skill';
         label = event.skill.name;
-        data = { name: event.skill.name, ...(event.skill.sourceRoot === undefined ? {} : { sourceRoot: event.skill.sourceRoot }) };
+        const meta = trace.skillMeta?.[event.skill.name];
+        data = {
+          name: event.skill.name,
+          ...(event.skill.sourceRoot === undefined ? {} : { sourceRoot: event.skill.sourceRoot }),
+          ...(meta?.category === undefined ? {} : { category: meta.category }),
+          ...(meta?.summary === undefined ? {} : { summary: meta.summary }),
+          ...(meta?.detail === undefined ? {} : { detail: meta.detail }),
+        };
         skillNodes.set(event.skill.name, id);
       } else if (event.type === 'tool-call') {
         kind = 'tool';

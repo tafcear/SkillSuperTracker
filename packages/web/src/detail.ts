@@ -32,7 +32,24 @@ export function renderDetail(container: HTMLElement, node: TreeNode): void {
   ];
   if (node.time !== undefined) basicRows.push(['时间', new Date(node.time).toLocaleString()]);
 
-  const dataPills = Object.entries(node.data)
+  // 技能节点：分类/简要概述/详细作用以正式字段呈现，不再混入数据 pills
+  let skillSection = '';
+  const pillEntries = Object.entries(node.data);
+  if (node.kind === 'skill') {
+    const category = typeof node.data.category === 'string' ? node.data.category : undefined;
+    const summary = typeof node.data.summary === 'string' ? node.data.summary : undefined;
+    const detail = typeof node.data.detail === 'string' ? node.data.detail : undefined;
+    if (category !== undefined || summary !== undefined || detail !== undefined) {
+      const rows: string[] = [];
+      if (category !== undefined) rows.push(`<div class="detail-row"><span class="detail-key">分类</span><span class="detail-val">${escapeHtml(category)}</span></div>`);
+      if (summary !== undefined) rows.push(`<div class="detail-row"><span class="detail-key">简要概述</span><span class="detail-val">${escapeHtml(summary)}</span></div>`);
+      if (detail !== undefined) rows.push(`<div class="skill-detail"><span class="detail-key">详细作用</span><p>${escapeHtml(detail)}</p></div>`);
+      skillSection = `<section class="detail-section"><h3>技能说明</h3>${rows.join('')}</section>`;
+    }
+  }
+
+  const dataPills = pillEntries
+    .filter(([k]) => !(node.kind === 'skill' && ['category', 'summary', 'detail', 'name'].includes(k)))
     .map(([k, v]) => `<span class="pill">${escapeHtml(k)}: ${escapeHtml(stringifyValue(v))}</span>`)
     .join('');
   const dataSection = dataPills === ''
@@ -51,6 +68,7 @@ export function renderDetail(container: HTMLElement, node: TreeNode): void {
       <h3>基本信息</h3>
       ${basicRows.map(([k, v]) => `<div class="detail-row"><span class="detail-key">${escapeHtml(k)}</span><span class="detail-val">${escapeHtml(v)}</span></div>`).join('')}
     </section>
+    ${skillSection}
     <section class="detail-section">
       <h3>数据</h3>
       ${dataSection}

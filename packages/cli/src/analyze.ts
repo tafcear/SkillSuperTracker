@@ -154,7 +154,7 @@ export async function runAnalyze(argv: string[], deps: AnalyzeDeps = {}): Promis
   const traces = [];
   for (const artifact of artifacts) {
     try {
-      traces.push(await adapter.parse(artifact));
+      traces.push(await adapter.parse(artifact, { readSkillMeta: true }));
     } catch (err) {
       errors(`failed to parse ${basename(artifact)}: ${err instanceof Error ? err.message : String(err)}, skipping`);
     }

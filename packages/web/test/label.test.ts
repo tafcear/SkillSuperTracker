@@ -78,6 +78,11 @@ describe('cardLines (compact light card)', () => {
     expect(cardLines(n)).toEqual({ title: 'writing-plans', lines: [] });
   });
 
+  it('skill card shows its category as the sub line when present', () => {
+    const n = mk('skill', 'writing-plans', { name: 'writing-plans', category: '规划' });
+    expect(cardLines(n)).toEqual({ title: 'writing-plans', lines: ['规划'] });
+  });
+
   it('tool outcome glyph goes inline after the name, target on second line', () => {
     const n = mk('tool', 'mcp__obsidian-zhuku__obsidian_search_notes', { name: 'mcp__obsidian-zhuku__obsidian_search_notes', outcome: 'ok', target: 'C:\\tools\\search.py' });
     expect(cardLines(n)).toEqual({ title: 'obsidian_search_notes ✓', lines: ['search.py'] });
