@@ -1,7 +1,8 @@
 import { buildTraceTree, traceSessionSchema, statReportSchema, type StatReport, type TraceSession } from '@skillsupertracker/core/pure';
 import { renderDetail } from './detail.js';
+import { escapeHtml } from './escape.js';
 import { renderHeat } from './heat-view.js';
-import { mountTree } from './tree-view.js';
+import { mountTree, KIND_COLORS } from './tree-view.js';
 
 type EmbeddedData = {
   kind: 'analyze';
@@ -26,7 +27,7 @@ function readEmbeddedData(): EmbeddedData {
 }
 
 function sessionTitle(trace: TraceSession): string {
-  return trace.session.title ?? trace.session.id ?? '(session)';
+  return trace.session.title || trace.session.id || '(未命名会话)';
 }
 
 function statusPill(trace: TraceSession): string {
@@ -43,15 +44,30 @@ function statusPill(trace: TraceSession): string {
   return `会话 ${trace.turns.length} 轮 · ${totalEvents} 事件`;
 }
 
+const LEGEND_ITEMS: Array<[string, string]> = [
+  ['session', '会话'],
+  ['turn', '轮次'],
+  ['skill', '技能'],
+  ['tool', '工具'],
+  ['artifact', '产物'],
+];
+
+function legendMarkup(): string {
+  const items = LEGEND_ITEMS
+    .map(([kind, label]) => `<span class="legend-item"><i class="legend-dot" style="background:${KIND_COLORS[kind as keyof typeof KIND_COLORS]}"></i>${label}</span>`)
+    .join('');
+  return `<div class="legend"><div class="legend-items">${items}</div><div class="legend-hint">单击节点查看详情 · 右键打开操作菜单 · 滚轮缩放 / 拖拽平移</div></div>`;
+}
+
 export function mountApp(root: HTMLElement): void {
   const data = readEmbeddedData();
   const header = data.kind === 'analyze'
-    ? `<header class="top"><span class="top-title">skillsupertracker — ${sessionTitle(data.trace)}</span><span class="status-pill">${statusPill(data.trace)}</span></header>`
+    ? `<header class="top"><span class="top-title">skillsupertracker — ${escapeHtml(sessionTitle(data.trace))}</span><span class="status-pill">${statusPill(data.trace)}</span></header>`
     : '<header class="top"><span class="top-title">skillsupertracker — 跨会话热度统计</span></header>';
   root.innerHTML = `
     ${header}
     <main class="split">
-      ${data.kind === 'analyze' ? '<div id="tree"></div><aside id="detail"></aside>' : '<div id="heat"></div>'}
+      ${data.kind === 'analyze' ? `<div id="tree">${legendMarkup()}</div><aside id="detail"></aside>` : '<div id="heat"></div>'}
     </main>`;
   if (data.kind === 'stat') {
     renderHeat(root.querySelector<HTMLElement>('#heat')!, data.stat);

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cardLines, shortLabel, TREE_STYLE } from '../src/tree-view.js';
-import { KIND_ICONS } from '../src/icons.js';
+import { cardLines, shortLabel, TREE_STYLE, KIND_EMOJI } from '../src/tree-view.js';
 import type { TreeNode } from '@skillsupertracker/core';
 
 describe('shortLabel', () => {
@@ -77,12 +76,19 @@ describe('cardLines (Coze light card)', () => {
 });
 
 describe('TREE_STYLE (Coze light cards)', () => {
-  it('base node is a white label-sized card', () => {
+  it('base node is a white label-sized card with centered wrapped text', () => {
     const s = TREE_STYLE.find((r) => r.selector === 'node')?.style;
     expect(s?.shape).toBe('round-rectangle');
     expect(s?.width).toBe('label');
     expect(s?.['text-wrap']).toBe('wrap');
+    expect(s?.['text-halign']).toBe('center');
+    expect(s?.['text-valign']).toBe('center');
     expect(s?.['background-color']).toBe('#FFFFFF');
+  });
+
+  it('session card falls back to a placeholder when label is empty', () => {
+    const n = mk('session', '', { agent: 'dsh' });
+    expect(cardLines(n).title).toBe('(未命名会话)');
   });
 
   it('selected card glows indigo', () => {
@@ -91,19 +97,22 @@ describe('TREE_STYLE (Coze light cards)', () => {
     expect(s?.['shadow-color']).toBe('#6366F1');
   });
 
-  it('edges are indigo bezier', () => {
-    const s = TREE_STYLE.find((r) => r.selector === 'edge')?.style;
-    expect(s?.['curve-style']).toBe('bezier');
-    expect(s?.['line-color']).toBe('#6366F1');
+  it('event edges are light gray, temporal chain edges are darker and thicker', () => {
+    const edge = TREE_STYLE.find((r) => r.selector === 'edge')?.style;
+    expect(edge?.['curve-style']).toBe('bezier');
+    expect(edge?.['line-color']).toBe('#CBD5E1');
+    const chain = TREE_STYLE.find((r) => r.selector === 'edge[chain]')?.style;
+    expect(chain?.['line-color']).toBe('#94A3B8');
+    expect(chain?.width).toBeGreaterThan(edge?.width as number);
   });
 });
 
-describe('KIND_ICONS', () => {
-  it('has all 5 kind data-URI icons', () => {
-    const keys = Object.keys(KIND_ICONS).sort();
+describe('KIND_EMOJI', () => {
+  it('has an emoji marker for all 5 kinds', () => {
+    const keys = Object.keys(KIND_EMOJI).sort();
     expect(keys).toEqual(['artifact', 'session', 'skill', 'tool', 'turn']);
     for (const k of keys) {
-      expect(KIND_ICONS[k]).toMatch(/^data:image\/svg\+xml,/);
+      expect(KIND_EMOJI[k as keyof typeof KIND_EMOJI].length).toBeGreaterThan(0);
     }
   });
 });

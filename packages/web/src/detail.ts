@@ -35,6 +35,9 @@ export function renderDetail(container: HTMLElement, node: TreeNode): void {
   const dataPills = Object.entries(node.data)
     .map(([k, v]) => `<span class="pill">${escapeHtml(k)}: ${escapeHtml(stringifyValue(v))}</span>`)
     .join('');
+  const dataSection = dataPills === ''
+    ? '<div class="detail-empty">暂无附加数据</div>'
+    : `<div class="detail-data">${dataPills}</div>`;
 
   container.innerHTML = `
     <div class="detail-header">
@@ -50,6 +53,6 @@ export function renderDetail(container: HTMLElement, node: TreeNode): void {
     </section>
     <section class="detail-section">
       <h3>数据</h3>
-      <div class="detail-data">${dataPills}</div>
+      ${dataSection}
     </section>`;
 }

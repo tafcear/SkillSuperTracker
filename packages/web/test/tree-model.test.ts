@@ -28,6 +28,27 @@ describe('toCytoscapeElements (render smoke)', () => {
     cy.destroy();
   });
 
+  it('chains turns temporally instead of fanning every turn off the session', () => {
+    const twoTurns: TraceSession = {
+      ...trace,
+      turns: [
+        trace.turns[0],
+        { index: 1, startedAt: 10, events: [] },
+        { index: 2, startedAt: 20, events: [] },
+      ],
+    };
+    const elements = toCytoscapeElements(buildTraceTree(twoTurns));
+    const edges = elements.filter((el) => 'source' in (el.data as object)) as Array<{ data: { id: string; source: string; target: string; chain?: string } }>;
+    const chainEdges = edges.filter((e) => e.data.chain !== undefined);
+    expect(chainEdges.map((e) => e.data.id)).toEqual([
+      'edge-chain-session-turn-0',
+      'edge-chain-turn-0-turn-1',
+      'edge-chain-turn-1-turn-2',
+    ]);
+    // 星型边已被移除：session 直连的只有 turn-0
+    expect(edges.filter((e) => e.data.source === 'session')).toHaveLength(1);
+  });
+
   it('runs the elk layered layout headless', async () => {
     const elements = toCytoscapeElements(buildTraceTree(trace));
     const cy = cytoscape({ headless: true, elements });

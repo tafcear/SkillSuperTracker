@@ -1,17 +1,24 @@
 import cytoscape from 'cytoscape';
 import elk from 'cytoscape-elk';
 import type { TraceTree, TreeNode, TreeNodeKind } from '@skillsupertracker/core/pure';
-import { KIND_ICONS } from './icons.js';
 import { menuStateFor } from './menu.js';
 
 cytoscape.use(elk);
 
-const KIND_COLORS: Record<string, string> = {
+export const KIND_COLORS: Record<TreeNodeKind, string> = {
   session: '#64748B',
   turn: '#94A3B8',
   skill: '#3B82F6',
   tool: '#8B5CF6',
   artifact: '#16A34A',
+};
+
+export const KIND_EMOJI: Record<TreeNodeKind, string> = {
+  session: '🗂',
+  turn: '⏱',
+  skill: '⚡',
+  tool: '🔧',
+  artifact: '📦',
 };
 
 export function shortLabel(kind: TreeNodeKind, label: string): string {
@@ -54,7 +61,7 @@ export function cardLines(node: TreeNode): { title: string; lines: string[] } {
           lines.push(`Tokens: ${(tu.input ?? 0) + (tu.output ?? 0)}`);
         }
       }
-      return { title: node.label, lines };
+      return { title: node.label || '(未命名会话)', lines };
     }
     case 'turn': {
       const lines: string[] = [];
@@ -83,7 +90,33 @@ export function cardLines(node: TreeNode): { title: string; lines: string[] } {
   }
 }
 
+/**
+ * Display-only edge list that turns the session→turn star into a temporal
+ * chain (session→turn-0→turn-1→…). Turns are sequential in time; a star
+ * makes elk stack every turn into one towering column, while a chain lays
+ * the session out left-to-right like a workflow. Core tree data is unchanged.
+ */
+export function temporalEdges(tree: TraceTree): { id: string; source: string; target: string; chain: true }[] {
+  const turns = tree.nodes
+    .filter((n): n is TreeNode & { id: string } => n.kind === 'turn')
+    .map((n) => ({ id: n.id, index: Number(n.id.slice('turn-'.length)) }))
+    .sort((a, b) => a.index - b.index);
+  const edges: { id: string; source: string; target: string; chain: true }[] = [];
+  let prev: { id: string; index: number } | undefined;
+  for (const turn of turns) {
+    if (prev === undefined) {
+      edges.push({ id: `edge-chain-session-${turn.id}`, source: 'session', target: turn.id, chain: true });
+    } else {
+      edges.push({ id: `edge-chain-${prev.id}-${turn.id}`, source: prev.id, target: turn.id, chain: true });
+    }
+    prev = turn;
+  }
+  return edges;
+}
+
 export function toCytoscapeElements(tree: TraceTree): cytoscape.ElementDefinition[] {
+  const turnIds = new Set(tree.nodes.filter((n) => n.kind === 'turn').map((n) => n.id));
+  const eventEdges = tree.edges.filter((e) => !(e.source === 'session' && turnIds.has(e.target)));
   return [
     ...tree.nodes.map((node): cytoscape.ElementDefinition => {
       const lines = cardLines(node);
@@ -95,12 +128,15 @@ export function toCytoscapeElements(tree: TraceTree): cytoscape.ElementDefinitio
           shortLabel: shortLabel(node.kind, node.label),
           title: lines.title,
           lines: lines.lines,
-          label: [lines.title, ...lines.lines].join('\n'),
+          label: [`${KIND_EMOJI[node.kind] ?? ''} ${lines.title}`.trim(), ...lines.lines].join('\n'),
         },
       };
     }),
-    ...tree.edges.map((edge): cytoscape.ElementDefinition => ({
+    ...eventEdges.map((edge): cytoscape.ElementDefinition => ({
       data: { id: edge.id, source: edge.source, target: edge.target },
+    })),
+    ...temporalEdges(tree).map((edge): cytoscape.ElementDefinition => ({
+      data: { id: edge.id, source: edge.source, target: edge.target, chain: true },
     })),
   ];
 }
@@ -114,20 +150,15 @@ export const TREE_STYLE: cytoscape.StylesheetStyle[] = [
       height: 'label',
       padding: '12px',
       'background-color': '#FFFFFF',
-      'background-image': (el: cytoscape.NodeSingular) => KIND_ICONS[String(el.data('kind')) as TreeNodeKind] ?? undefined,
-      'background-width': '22px',
-      'background-height': '22px',
-      'background-position-x': '10px',
-      'background-position-y': '50%',
-      'text-halign': 'left',
+      'text-halign': 'center',
       'text-valign': 'center',
-      'text-margin-x': 16,
       'text-wrap': 'wrap',
       'text-max-width': '190px',
+      'line-height': 1.4,
       'font-size': 11,
       color: '#1F2329',
       'border-width': 1,
-      'border-color': (el: cytoscape.NodeSingular) => KIND_COLORS[String(el.data('kind'))] ?? '#999',
+      'border-color': (el: cytoscape.NodeSingular) => KIND_COLORS[String(el.data('kind')) as TreeNodeKind] ?? '#999',
       'shadow-blur': 6,
       'shadow-color': '#0a0a0a',
       'shadow-opacity': 0.08,
@@ -155,14 +186,24 @@ export const TREE_STYLE: cytoscape.StylesheetStyle[] = [
   {
     selector: 'edge',
     style: {
-      width: 1.5,
-      'line-color': '#6366F1',
+      width: 1.2,
+      'line-color': '#CBD5E1',
       'target-arrow-shape': 'triangle',
-      'target-arrow-color': '#6366F1',
+      'target-arrow-color': '#CBD5E1',
       'curve-style': 'bezier',
       'control-point-distance': 56,
       'control-point-weight': 0.5,
-      'arrow-scale': 0.8,
+      'arrow-scale': 0.65,
+    },
+  },
+  {
+    // 主时序流（session→turn-0→turn-1→…）比事件边略深略粗，区分层级
+    selector: 'edge[chain]',
+    style: {
+      width: 2,
+      'line-color': '#94A3B8',
+      'target-arrow-color': '#94A3B8',
+      'arrow-scale': 0.9,
     },
   },
 ];
@@ -170,6 +211,16 @@ export const TREE_STYLE: cytoscape.StylesheetStyle[] = [
 export interface TreeViewHandle {
   cy: cytoscape.Core;
   destroy(): void;
+}
+
+/** fit 后若整体缩放低于可读阈值，锚定 session 用可读缩放展示首屏 */
+function settleInitialView(cy: cytoscape.Core): void {
+  cy.fit(undefined, 48);
+  if (cy.zoom() < 0.5) {
+    cy.zoom(0.5);
+    const anchor = cy.getElementById('session');
+    if (anchor.nonempty()) cy.center(anchor);
+  }
 }
 
 export function mountTree(
@@ -182,6 +233,7 @@ export function mountTree(
     elements: toCytoscapeElements(tree),
     wheelSensitivity: 0.2,
     minZoom: 0.05,
+    maxZoom: 2,
     background: false,
     style: TREE_STYLE,
   } as cytoscape.CytoscapeOptions);
@@ -195,8 +247,25 @@ export function mountTree(
       'elk.spacing.nodeNodeBetweenLayers': 120,
     },
   } as unknown as cytoscape.LayoutOptions);
-  layout.on('layoutstop', () => cy.fit(undefined, 48));
+  layout.on('layoutstop', () => settleInitialView(cy));
   layout.run();
+
+  const controls = document.createElement('div');
+  controls.className = 'canvas-controls';
+  const button = (text: string, title: string, onClick: () => void): HTMLButtonElement => {
+    const b = document.createElement('button');
+    b.textContent = text;
+    b.title = title;
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onClick();
+    });
+    return b;
+  };
+  controls.appendChild(button('＋', '放大', () => cy.zoom(Math.min(cy.zoom() * 1.25, cy.maxZoom()))));
+  controls.appendChild(button('－', '缩小', () => cy.zoom(Math.max(cy.zoom() / 1.25, cy.minZoom()))));
+  controls.appendChild(button('⛶', '适配全图', () => settleInitialView(cy)));
+  container.appendChild(controls);
 
   cy.on('tap', 'node', (event) => {
     const id = event.target.id();
@@ -213,7 +282,13 @@ export function mountTree(
     showContextMenu(container, pos, node, onSelect);
   });
 
-  return { cy, destroy: () => cy.destroy() };
+  return {
+    cy,
+    destroy: () => {
+      controls.remove();
+      cy.destroy();
+    },
+  };
 }
 
 function showContextMenu(
