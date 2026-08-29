@@ -21,6 +21,14 @@ export const KIND_EMOJI: Record<TreeNodeKind, string> = {
   artifact: '📦',
 };
 
+export const KIND_LABELS: Record<TreeNodeKind, string> = {
+  session: '会话',
+  turn: '轮次',
+  skill: '技能',
+  tool: '工具',
+  artifact: '产物',
+};
+
 export function shortLabel(kind: TreeNodeKind, label: string): string {
   if (kind === 'tool') {
     const idx = label.lastIndexOf('__');
@@ -114,6 +122,7 @@ export function temporalEdges(tree: TraceTree): { id: string; source: string; ta
 
 function nodeDef(tree: TraceTree, node: TreeNode): cytoscape.ElementDefinition {
   const lines = cardLines(node);
+  const kindLabel = KIND_LABELS[node.kind] ?? node.kind;
   return {
     data: {
       ...node.data,
@@ -122,7 +131,7 @@ function nodeDef(tree: TraceTree, node: TreeNode): cytoscape.ElementDefinition {
       shortLabel: shortLabel(node.kind, node.label),
       title: lines.title,
       lines: lines.lines,
-      label: [`${KIND_EMOJI[node.kind] ?? ''} ${lines.title}`.trim(), ...lines.lines].join('\n'),
+      label: [`${KIND_EMOJI[node.kind] ?? ''}（${kindLabel}）${lines.title}`.trim(), ...lines.lines].join('\n'),
     },
   };
 }
@@ -154,7 +163,7 @@ function turnDisplayLabel(tree: TraceTree, node: TreeNode, expanded: boolean): s
   const lines = [...c.lines];
   const count = eventCountFor(tree, node.id);
   if (count > 0) lines.push(`${count} 事件`);
-  return [`${KIND_EMOJI.turn} ${c.title} ${turnMarker(expanded)}`.trim(), ...lines].join('\n');
+  return [`${KIND_EMOJI.turn}（轮次）${c.title} ${turnMarker(expanded)}`.trim(), ...lines].join('\n');
 }
 
 /**
@@ -179,16 +188,40 @@ export function chainElements(tree: TraceTree, expanded: ReadonlySet<string>): c
 }
 
 /** Level 2: one turn's event nodes + the edges binding them to it (skill→tool chains included). */
-export function turnEventElements(tree: TraceTree, turnId: string): cytoscape.ElementDefinition[] {
+export function turnEventElements(
+  tree: TraceTree,
+  turnId: string,
+  kindFilter?: 'skill' | 'tool' | 'artifact',
+): cytoscape.ElementDefinition[] {
   const prefix = `${turnId}-event-`;
   const ids = new Set(tree.nodes.filter((n) => n.id.startsWith(prefix)).map((n) => n.id));
-  const nodes = tree.nodes.filter((n) => ids.has(n.id)).map((node) => nodeDef(tree, node));
+  const nodes = tree.nodes.filter((n) => ids.has(n.id) && (kindFilter === undefined || n.kind === kindFilter));
+  const visible = new Set<string>([turnId, ...nodes.map((n) => n.id)]);
   const edges = tree.edges
-    .filter((e) => (e.source === turnId && ids.has(e.target)) || (ids.has(e.source) && ids.has(e.target)))
+    .filter((e) => visible.has(e.source) && visible.has(e.target))
     .map((edge): cytoscape.ElementDefinition => ({
       data: { id: edge.id, source: edge.source, target: edge.target },
     }));
-  return [...nodes, ...edges];
+  return [...nodes.map((node) => nodeDef(tree, node)), ...edges];
+}
+
+/** 把主流程（会话+轮次链）钉成一条水平直线，放在所有事件下方 */
+export function alignChainToBottom(cy: cytoscape.Core, tree: TraceTree): void {
+  const chainSet = new Set(['session', ...tree.nodes.filter((n) => n.kind === 'turn').map((n) => n.id)]);
+  const chainNodes = cy.nodes().filter((n) => chainSet.has(n.id()));
+  if (chainNodes.empty()) return;
+  const events = cy.nodes().filter((n) => !chainSet.has(n.id()));
+  let chainY: number;
+  if (events.empty()) {
+    chainY = chainNodes[0].position().y;
+  } else {
+    let maxY = 0;
+    events.forEach((n) => {
+      maxY = Math.max(maxY, n.position().y + n.outerHeight() / 2);
+    });
+    chainY = maxY + 90;
+  }
+  chainNodes.forEach((n) => n.position({ x: n.position().x, y: chainY }));
 }
 
 export const TREE_STYLE: cytoscape.StylesheetStyle[] = [
@@ -304,19 +337,56 @@ export function mountTree(
     },
   } as unknown as cytoscape.LayoutOptions;
   const layout = cy.layout(layoutOpts);
-  layout.on('layoutstop', () => settleInitialView(cy));
+  layout.on('layoutstop', () => {
+    alignChainToBottom(cy, tree);
+    settleInitialView(cy);
+  });
   layout.run();
 
   /** 展开/收起一个轮次后重排，并保持可读缩放、居中到被操作的轮次 */
   const relayoutAround = (turnId: string): void => {
     const l = cy.layout(layoutOpts);
     l.on('layoutstop', () => {
+      alignChainToBottom(cy, tree);
       if (cy.zoom() < 0.5) cy.zoom(0.5);
       const anchor = cy.getElementById(turnId);
       if (anchor.nonempty()) cy.center(anchor);
     });
     l.run();
   };
+
+  let eventFilter: 'all' | 'skill' | 'tool' | 'artifact' = 'all';
+  const applyFilter = (): void => {
+    for (const turnId of Array.from(expanded)) {
+      const evNodes = cy.nodes(`[id ^= "${turnId}-event-"]`);
+      evNodes.connectedEdges().remove();
+      evNodes.remove();
+      cy.add(turnEventElements(tree, turnId, eventFilter === 'all' ? undefined : eventFilter));
+    }
+    relayoutAround(Array.from(expanded)[0] ?? 'session');
+  };
+
+  const bar = document.createElement('div');
+  bar.className = 'filter-bar';
+  const filterButton = (value: typeof eventFilter, text: string): HTMLButtonElement => {
+    const b = document.createElement('button');
+    b.textContent = text;
+    b.dataset.filter = value;
+    if (value === eventFilter) b.classList.add('active');
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (eventFilter === value) return;
+      eventFilter = value;
+      bar.querySelectorAll('button').forEach((x) => x.classList.toggle('active', x.dataset.filter === value));
+      applyFilter();
+    });
+    return b;
+  };
+  bar.appendChild(filterButton('all', '全部'));
+  bar.appendChild(filterButton('skill', '⚡ 技能'));
+  bar.appendChild(filterButton('tool', '🔧 工具'));
+  bar.appendChild(filterButton('artifact', '📦 产物'));
+  container.appendChild(bar);
 
   const toggleTurn = (turnId: string): void => {
     if (expanded.has(turnId)) {
@@ -390,6 +460,7 @@ export function mountTree(
     cy,
     destroy: () => {
       controls.remove();
+      bar.remove();
       cy.destroy();
     },
   };

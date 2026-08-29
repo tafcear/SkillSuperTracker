@@ -76,6 +76,24 @@ describe('toCytoscapeElements (render smoke)', () => {
     expect(ev.every((el) => scope.has(String(el.data?.source ?? el.data?.id)) && scope.has(String(el.data?.target ?? el.data?.id)))).toBe(true);
   });
 
+  it('kind filter keeps only matching events and their edges', () => {
+    const tree = buildTraceTree(trace);
+    const ev = turnEventElements(tree, 'turn-0', 'skill');
+    const ids = ev.map((el) => el.data?.id);
+    expect(ids).toContain('turn-0-event-0'); // skill
+    expect(ids).not.toContain('turn-0-event-1'); // tool filtered out
+    expect(ids).toContain('edge-turn-0-turn-0-event-0');
+    expect(ids).not.toContain('edge-turn-0-event-0-turn-0-event-1');
+  });
+
+  it('node labels carry a parenthetical kind description', () => {
+    const elements = toCytoscapeElements(buildTraceTree(trace));
+    const tool = elements.find((el) => el.data?.id === 'turn-0-event-1')!;
+    expect(String(tool.data?.label).startsWith('🔧（工具）')).toBe(true);
+    const skill = elements.find((el) => el.data?.id === 'turn-0-event-0')!;
+    expect(String(skill.data?.label).startsWith('⚡（技能）')).toBe(true);
+  });
+
   it('runs the elk layered layout headless', async () => {
     const elements = toCytoscapeElements(buildTraceTree(trace));
     const cy = cytoscape({ headless: true, elements });
