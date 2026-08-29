@@ -54,10 +54,18 @@ function formatTime(t: number): string {
   return `${hh}:${mm}:${ss}`;
 }
 
+/** 卡片上的正文摘要：压成单行，超长截断 */
+function excerpt(s: string, max: number): string {
+  const one = s.replace(/\s+/g, ' ').trim();
+  return one.length > max ? `${one.slice(0, max)}…` : one;
+}
+
 export function cardLines(node: TreeNode): { title: string; lines: string[] } {
   switch (node.kind) {
     case 'session': {
-      const lines: string[] = [String(node.data.agent ?? 'dsh')];
+      const lines: string[] = [];
+      if (typeof node.data.id === 'string' && node.data.id !== '') lines.push(`ID: ${node.data.id}`);
+      lines.push(String(node.data.agent ?? 'dsh'));
       if (typeof node.data.model === 'string') lines.push(node.data.model);
       if (node.data.tokenUsage !== undefined && typeof node.data.tokenUsage === 'object' && node.data.tokenUsage !== null) {
         const tu = node.data.tokenUsage as { input?: number; output?: number };
@@ -68,13 +76,12 @@ export function cardLines(node: TreeNode): { title: string; lines: string[] } {
       return { title: node.label || '(未命名会话)', lines };
     }
     case 'turn': {
+      // 内容优先：用户这轮发了什么放第一行，时间退到次要行
       const parts: string[] = [];
+      const prompt = typeof node.data.prompt === 'string' ? excerpt(node.data.prompt, 36) : undefined;
+      if (prompt !== undefined && prompt !== '') parts.push(prompt);
       if (node.time !== undefined) parts.push(formatTime(node.time).slice(0, 5));
-      const endedAt = node.data.endedAt;
-      if (typeof endedAt === 'number' && node.time !== undefined) {
-        parts.push(`${((endedAt - node.time) / 1000).toFixed(1)}s`);
-      }
-      return { title: node.label, lines: parts.length > 0 ? [parts.join(' · ')] : [] };
+      return { title: node.label, lines: parts };
     }
     case 'skill':
       return { title: node.label, lines: [] };

@@ -41,12 +41,36 @@ describe('cardLines (compact light card)', () => {
     expect(cardLines(n)).toEqual({ title: 'Plugin ecosystem doc...', lines: ['dsh', 'deepseek-v4-pro', 'Tokens: 150'] });
   });
 
-  it('turn card merges time and duration into one line', () => {
-    const n = mk('turn', 'Turn 2', { endedAt: 1700000060000 }, 1700000000000);
+  it('session card shows ID, agent + model + tokens', () => {
+    const n = mk('session', 'Plugin ecosystem doc...', { id: 'session-9', agent: 'dsh', model: 'deepseek-v4-pro', tokenUsage: { input: 100, output: 50 } });
+    expect(cardLines(n)).toEqual({ title: 'Plugin ecosystem doc...', lines: ['ID: session-9', 'dsh', 'deepseek-v4-pro', 'Tokens: 150'] });
+  });
+
+  it('session card without id skips the ID line', () => {
+    const n = mk('session', 't', { agent: 'dsh' });
+    expect(cardLines(n).lines).toEqual(['dsh']);
+  });
+
+  it('turn card leads with the user prompt, time second (content over metadata)', () => {
+    const n = mk('turn', 'Turn 2', { prompt: '修复登录缺陷并补上回归测试' }, 1700000000000);
     const r = cardLines(n);
-    expect(r.title).toBe('Turn 2');
+    expect(r.lines[0]).toBe('修复登录缺陷并补上回归测试');
+    expect(r.lines[1]).toMatch(/^\d{2}:\d{2}$/);
+  });
+
+  it('turn card without prompt falls back to time only', () => {
+    const n = mk('turn', 'Turn 2', {}, 1700000000000);
+    const r = cardLines(n);
     expect(r.lines).toHaveLength(1);
-    expect(r.lines[0]).toMatch(/^\d{2}:\d{2} · \d+\.\ds$/);
+    expect(r.lines[0]).toMatch(/^\d{2}:\d{2}$/);
+  });
+
+  it('turn prompt excerpt collapses whitespace and truncates', () => {
+    const n = mk('turn', 'Turn 3', { prompt: '  很长   的需求\n第二段  '.repeat(10) }, 1700000000000);
+    const r = cardLines(n);
+    expect(r.lines[0]!.length).toBeLessThanOrEqual(37);
+    expect(r.lines[0]!.endsWith('…')).toBe(true);
+    expect(r.lines[0]).not.toContain('\n');
   });
 
   it('skill card is title-only (details live in the side panel)', () => {

@@ -4,8 +4,10 @@ import type { DshFingerprint } from './fingerprint.js';
 
 const FS_TOOLS_WITH_PATH = new Set(['read', 'write', 'edit', 'read_image']);
 const COMMIT_TOOL_SUFFIX = 'git_commit';
+/** 每轮用户输入摘要的上限字符数（含省略号） */
+const PROMPT_MAX_CHARS = 200;
 const IGNORED_EVENT_TYPES = new Set([
-  'user/message', 'assistant/chunk', 'assistant/message', 'step/start', 'step/end',
+  'assistant/chunk', 'assistant/message', 'step/start', 'step/end',
   'request/header', 'approval/asked', 'approval/decided', 'approval/policy', 'permission/preset',
   'sandbox/mode', 'todo/write', 'goal/change', 'plan/mode', 'feedback/record', 'hook/invoked',
   'hook/result', 'command/run', 'command/done', 'compaction/start', 'compaction/end',
@@ -26,6 +28,20 @@ interface PendingCall {
 }
 
 type OpenTurn = TraceTurn & { events: TraceEvent[] };
+
+/** user/message 的 content 块 → 单行摘要（超长截断） */
+function userPromptText(content: unknown): string | undefined {
+  if (!Array.isArray(content)) return undefined;
+  const parts: string[] = [];
+  for (const block of content) {
+    if (typeof block !== 'object' || block === null) continue;
+    const text = (block as { text?: unknown }).text;
+    if (typeof text === 'string' && text.trim() !== '') parts.push(text.trim());
+  }
+  const joined = parts.join(' ').replace(/\s+/g, ' ').trim();
+  if (joined === '') return undefined;
+  return joined.length > PROMPT_MAX_CHARS ? `${joined.slice(0, PROMPT_MAX_CHARS - 1)}…` : joined;
+}
 
 function toolTarget(name: string, args: unknown): string | undefined {
   if (!FS_TOOLS_WITH_PATH.has(name)) return undefined;
@@ -108,6 +124,14 @@ export function parseDshText(text: string, _fingerprint: DshFingerprint): TraceS
         };
         turns.push(turn);
         current = { turn: turn as OpenTurn, pendingSkills: new Map(), seenArtifacts: new Set() };
+        break;
+      }
+      case 'user/message': {
+        const text = userPromptText(data.content);
+        if (text !== undefined && current !== undefined) {
+          const merged = current.turn.prompt === undefined ? text : `${current.turn.prompt} ${text}`;
+          current.turn.prompt = merged.length > PROMPT_MAX_CHARS ? `${merged.slice(0, PROMPT_MAX_CHARS - 1)}…` : merged;
+        }
         break;
       }
       case 'turn/end': {

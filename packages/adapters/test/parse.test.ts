@@ -92,6 +92,30 @@ describe('dshAdapter.parse', () => {
     await expect(dshAdapter.parse(path)).rejects.toThrow(/version 99/);
   });
 
+  it('captures the user prompt per turn (joined, whitespace-collapsed, truncated)', async () => {
+    const long = '很长的需求描述'.repeat(60); // 420 chars > 200
+    const LOG = [
+      JSON.stringify(HEADER),
+      line('turn/start', 1, 10, { turn: 0 }),
+      line('user/message', 2, 11, { content: [{ type: 'text', text: '帮我写个计划\n第二行' }] }),
+      line('user/message', 3, 12, { content: [{ type: 'text', text: long }] }),
+      line('turn/end', 4, 20, { turn: 0, reason: { kind: 'completed' } }),
+      line('turn/start', 5, 30, { turn: 1 }),
+      line('user/message', 6, 31, { content: [{ type: 'text', text: '   ' }] }), // 空白消息不计
+      line('turn/end', 7, 40, { turn: 1, reason: { kind: 'completed' } }),
+    ].join('\n') + '\n';
+    const path = join(dir, 'prompt.jsonl.zstd');
+    await writeFile(path, compressFrame(LOG));
+    const trace = await dshAdapter.parse(path);
+
+    const prompt = trace.turns[0].prompt;
+    expect(prompt).toBeDefined();
+    expect(prompt).toContain('帮我写个计划 第二行');
+    expect(prompt!.length).toBeLessThanOrEqual(200);
+    expect(prompt!.endsWith('…')).toBe(true);
+    expect(trace.turns[1].prompt).toBeUndefined();
+  });
+
   it('reads plaintext session.jsonl too', async () => {
     const path = join(dir, 'session.jsonl');
     await writeFile(path, LOG_TEXT.slice(0, 700) + '\n', 'utf8');

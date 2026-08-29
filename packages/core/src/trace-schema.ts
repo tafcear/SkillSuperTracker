@@ -35,6 +35,8 @@ export const traceTurnSchema = z.object({
   startedAt: z.number().int().optional(),
   endedAt: z.number().int().optional(),
   endReason: z.string().optional(),
+  /** 用户这一轮发送了什么（截断后的正文摘要），供时序主链卡片做内容展示 */
+  prompt: z.string().min(1).optional(),
   events: z.array(traceEventSchema),
 });
 

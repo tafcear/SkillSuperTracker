@@ -51,6 +51,7 @@ export function buildTraceTree(trace: TraceSession): TraceTree {
       data: {
         ...(turn.endedAt === undefined ? {} : { endedAt: turn.endedAt }),
         ...(turn.endReason === undefined ? {} : { endReason: turn.endReason }),
+        ...(turn.prompt === undefined ? {} : { prompt: turn.prompt }),
       },
     });
     edges.push({ id: `edge-${sessionNode.id}-${turnId}`, source: sessionNode.id, target: turnId });

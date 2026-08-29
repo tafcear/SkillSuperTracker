@@ -83,6 +83,10 @@
           "endReason": {
             "type": "string"
           },
+          "prompt": {
+            "type": "string",
+            "minLength": 1
+          },
           "events": {
             "type": "array",
             "items": {
